@@ -7,8 +7,6 @@ use crate::state::{BondingCurveCoefficients, TargetChain};
 pub struct TokenLaunched {
     pub token_name: String,
     pub ticker: String,
-    pub media_url: String,
-    pub description: String,
     pub supply: u64,
     pub initial_buy_amount: u64,
     pub initial_buy_price: f64,
