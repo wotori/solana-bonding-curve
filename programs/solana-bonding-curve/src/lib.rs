@@ -9,6 +9,7 @@ use anchor_spl::{
 pub mod events;
 pub mod state;
 
+use anchor_spl::metadata::mpl_token_metadata::{instructions::CreateV1, ID as MPL_METADATA_ID};
 use events::TokenLaunched;
 use state::{OwnedToken, TokenLaunchParams};
 
@@ -18,10 +19,11 @@ declare_id!("E48ijHDaZqdVBiGgCGGJRQTM373TsjYPGv8rpVzu4P9R");
 pub mod bonding_curve {
     use super::*;
     use anchor_lang::solana_program::program::invoke;
-    use mpl_token_metadata::{instruction::create_metadata_accounts_v2, ID as MPL_METADATA_ID};
+    use anchor_lang::solana_program::sysvar;
+    use anchor_spl::metadata::mpl_token_metadata::instructions::CreateV1InstructionArgs;
+    use anchor_spl::metadata::mpl_token_metadata::types::TokenStandard;
 
     /// Initialize bonding curve and token with selected parameters.
-    /// For displaying token in wallets, use Metaplex instructions separately.
     pub fn create_owned_token(
         ctx: Context<CreateOwnedToken>,
         params: TokenLaunchParams,
@@ -34,12 +36,13 @@ pub mod bonding_curve {
             owned_token.supply = params.supply;
             owned_token.initial_buy_amount = params.initial_buy_amount;
             owned_token.initial_buy_price = params.initial_buy_price;
-            owned_token.target_chains = params.target_chains;
+            owned_token.target_chains = params.target_chains.clone();
             owned_token.public_token = params.public_token;
-            owned_token.bonding_curve_coefficients = params.bonding_curve_coefficients;
+            owned_token.bonding_curve_coefficients = params.bonding_curve_coefficients.clone();
         }
 
         // 2. Mint a certain amount of tokens to the owner's ATA
+        // TODO: Verify that the provided public_token has sufficient SOL before the transfer
         let cpi_ctx = CpiContext::new(
             ctx.accounts.token_program.to_account_info(),
             MintTo {
@@ -50,41 +53,59 @@ pub mod bonding_curve {
         );
         token::mint_to(cpi_ctx, params.initial_buy_amount)?;
 
-        // 3.Create Metaplex Metadata (simplified example)
-        // Usually pass in `name, symbol, uri` from front-end.
-        if let Some(uri) = params.metadata_uri {
-            let mint_key = ctx.accounts.mint.key();
-            // Derive metadata PDA
-            let (metadata_pda, _bump) = Pubkey::find_program_address(
-                &[b"metadata", MPL_METADATA_ID.as_ref(), mint_key.as_ref()],
-                &MPL_METADATA_ID,
-            );
+        // 3. Create Metaplex Metadata using CreateV1
+        let mint_key = ctx.accounts.mint.key();
 
-            let create_md_ix = create_metadata_accounts_v2(
-                MPL_METADATA_ID,
-                metadata_pda,
-                mint_key,
-                ctx.accounts.owner.key(),
-                ctx.accounts.owner.key(),
-                ctx.accounts.owner.key(),
-                params.token_name,
-                params.ticker,
-                uri,
-                None, // creators
-                0,    // seller_fee_basis_points
-                true, // update_authority_is_signer
-                false,
-            );
-            invoke(
-                &create_md_ix,
-                &[
-                    ctx.accounts.token_metadata_program.to_account_info(),
-                    ctx.accounts.mint.to_account_info(),
-                    ctx.accounts.owner.to_account_info(),
-                    ctx.accounts.system_program.to_account_info(),
-                ],
-            )?;
-        }
+        // Derive metadata PDA
+        let (metadata_pda, _bump) = Pubkey::find_program_address(
+            &[b"metadata", MPL_METADATA_ID.as_ref(), mint_key.as_ref()],
+            &MPL_METADATA_ID,
+        );
+
+        // Instantiate CreateV1 struct with required accounts
+        let create_metadata_accounts_v1 = CreateV1 {
+            metadata: metadata_pda,
+            master_edition: None, // Assuming master edition is not needed here
+            mint: (ctx.accounts.mint.key(), false),
+            authority: ctx.accounts.owner.key(),
+            payer: ctx.accounts.owner.key(),
+            update_authority: (ctx.accounts.owner.key(), true),
+            system_program: ctx.accounts.system_program.key(),
+            sysvar_instructions: sysvar::instructions::ID,
+            spl_token_program: token::ID,
+        };
+
+        // Define the instruction arguments
+        let args = CreateV1InstructionArgs {
+            name: params.token_name.clone(),
+            symbol: params.ticker.clone(), // IPFS hash (?)
+            uri: params.metadata_uri.clone(),
+            seller_fee_basis_points: 0, // TODO: Specify the royalty fee if needed (?)
+            creators: None,             // NFTs
+            primary_sale_happened: false, // (?)
+            is_mutable: false,          // TODO: pass from transaction
+            token_standard: TokenStandard::Fungible,
+            collection: None,         // NFTs
+            uses: None,               // (?)
+            collection_details: None, // // NFTs
+            rule_set: None,           // Specify the rule set Pubkey (?)
+            decimals: Some(9),
+            print_supply: None, // NFTs
+        };
+
+        // Create the instruction
+        let create_md_ix = create_metadata_accounts_v1.instruction(args);
+
+        // Invoke the instruction
+        invoke(
+            &create_md_ix,
+            &[
+                ctx.accounts.token_metadata_program.to_account_info(),
+                ctx.accounts.mint.to_account_info(),
+                ctx.accounts.owner.to_account_info(),
+                ctx.accounts.system_program.to_account_info(),
+            ],
+        )?;
 
         // 4. Emit event for the newly created token
         let owned_token = &ctx.accounts.owned_token;
@@ -137,7 +158,7 @@ pub struct CreateOwnedToken<'info> {
     pub owner_token_account: Account<'info, TokenAccount>,
 
     /// Metaplex Token Metadata Program (for optional metadata creation)
-    #[account(address = mpl_token_metadata::ID)]
+    #[account(address = MPL_METADATA_ID)]
     pub token_metadata_program: UncheckedAccount<'info>,
 
     /// System program

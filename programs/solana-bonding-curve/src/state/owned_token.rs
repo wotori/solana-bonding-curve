@@ -8,10 +8,10 @@ use super::{BondingCurveCoefficients, TargetChain};
 /// Metadata can handle that for wallet display.)
 #[account]
 pub struct OwnedToken {
-    /// A short name for the token (for internal use in your program)
+    /// A short name for the token (for internal use in program)
     pub token_name: String,
 
-    /// A short ticker symbol (for internal use in your program)
+    /// A short ticker symbol (for internal use in program)
     pub ticker: String,
 
     /// Total supply (planned or maximum) for the token
@@ -20,7 +20,7 @@ pub struct OwnedToken {
     /// How many tokens to mint initially for the owner
     pub initial_buy_amount: u64,
 
-    /// The initial buy price used in your bonding curve logic
+    /// The initial buy price used in bonding curve logic
     pub initial_buy_price: f64,
 
     /// Possible target chains for bridging or cross-chain usage
@@ -34,7 +34,6 @@ pub struct OwnedToken {
 }
 
 impl OwnedToken {
-    // We recalculate the required space after removing fields:
     pub const LEN: usize = 8          // discriminator
         + 32                          // token_name (assume 32 chars max)
         + 10                          // ticker (assume 10 chars max)

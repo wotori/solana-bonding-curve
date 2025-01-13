@@ -8,6 +8,7 @@ use super::{BondingCurveCoefficients, TargetChain};
 pub struct TokenLaunchParams {
     pub token_name: String,
     pub ticker: String,
+    pub metadata_uri: String,
     pub media_url: String,
     pub description: String,
     pub website: Option<String>,
