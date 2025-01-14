@@ -1,15 +1,15 @@
 use anchor_lang::prelude::*;
-use anchor_lang::solana_program::entrypoint::ProgramResult;
 
 use anchor_spl::{
     associated_token::AssociatedToken,
     token::{self, Mint, MintTo, Token, TokenAccount},
 };
 
+use anchor_spl::metadata::mpl_token_metadata::{instructions::CreateV1, ID as MPL_METADATA_ID};
+
 pub mod events;
 pub mod state;
 
-use anchor_spl::metadata::mpl_token_metadata::{instructions::CreateV1, ID as MPL_METADATA_ID};
 use events::TokenLaunched;
 use state::{OwnedToken, TokenLaunchParams};
 
@@ -23,12 +23,9 @@ pub mod bonding_curve {
     use anchor_spl::metadata::mpl_token_metadata::instructions::CreateV1InstructionArgs;
     use anchor_spl::metadata::mpl_token_metadata::types::TokenStandard;
 
-    /// Initialize bonding curve and token with selected parameters.
-    pub fn create_owned_token(
-        ctx: Context<CreateOwnedToken>,
-        params: TokenLaunchParams,
-    ) -> ProgramResult {
-        // 1. Store minimal bonding-curve info in OwnedToken
+    /// Launch a new token with metadata
+    pub fn launch_token(ctx: Context<LaunchToken>, params: TokenLaunchParams) -> Result<()> {
+        // 1. Initialize OwnedToken
         {
             let owned_token = &mut ctx.accounts.owned_token;
             owned_token.token_name = params.token_name.clone();
@@ -39,105 +36,107 @@ pub mod bonding_curve {
             owned_token.target_chains = params.target_chains.clone();
             owned_token.public_token = params.public_token;
             owned_token.bonding_curve_coefficients = params.bonding_curve_coefficients.clone();
+            owned_token.metadata_uri = params.metadata_uri.clone();
         }
 
-        // 2. Mint a certain amount of tokens to the owner's ATA
-        // TODO: Verify that the provided public_token has sufficient SOL before the transfer
-        let cpi_ctx = CpiContext::new(
-            ctx.accounts.token_program.to_account_info(),
-            MintTo {
-                mint: ctx.accounts.mint.to_account_info(),
-                to: ctx.accounts.owner_token_account.to_account_info(),
-                authority: ctx.accounts.owned_token.to_account_info(),
-            },
-        );
-        token::mint_to(cpi_ctx, params.initial_buy_amount)?;
+        // 2. Mint tokens to the owner's ATA
+        {
+            let cpi_ctx = CpiContext::new(
+                ctx.accounts.token_program.to_account_info(),
+                MintTo {
+                    mint: ctx.accounts.mint.to_account_info(),
+                    to: ctx.accounts.owner_token_account.to_account_info(),
+                    authority: ctx.accounts.owned_token.to_account_info(),
+                },
+            );
+            token::mint_to(cpi_ctx, params.initial_buy_amount)?;
+        }
 
-        // 3. Create Metaplex Metadata using CreateV1
-        let mint_key = ctx.accounts.mint.key();
+        // 3. Create Token Metadata via Metaplex
+        {
+            let owned_token = &ctx.accounts.owned_token;
+            let mint_key = ctx.accounts.mint.key();
 
-        // Derive metadata PDA
-        let (metadata_pda, _bump) = Pubkey::find_program_address(
-            &[b"metadata", MPL_METADATA_ID.as_ref(), mint_key.as_ref()],
-            &MPL_METADATA_ID,
-        );
+            // Derive metadata PDA
+            let (metadata_pda, _bump) = Pubkey::find_program_address(
+                &[b"metadata", MPL_METADATA_ID.as_ref(), mint_key.as_ref()],
+                &MPL_METADATA_ID,
+            );
 
-        // Instantiate CreateV1 struct with required accounts
-        let create_metadata_accounts_v1 = CreateV1 {
-            metadata: metadata_pda,
-            master_edition: None, // Assuming master edition is not needed here
-            mint: (ctx.accounts.mint.key(), false),
-            authority: ctx.accounts.owner.key(),
-            payer: ctx.accounts.owner.key(),
-            update_authority: (ctx.accounts.owner.key(), true),
-            system_program: ctx.accounts.system_program.key(),
-            sysvar_instructions: sysvar::instructions::ID,
-            spl_token_program: token::ID,
-        };
+            // Build the CreateV1 accounts struct
+            let create_metadata_accounts_v1 = CreateV1 {
+                metadata: metadata_pda,
+                master_edition: None, // Not needed for a fungible
+                mint: (mint_key, false),
+                authority: ctx.accounts.owner.key(),
+                payer: ctx.accounts.owner.key(),
+                update_authority: (ctx.accounts.owner.key(), true),
+                system_program: ctx.accounts.system_program.key(),
+                sysvar_instructions: sysvar::instructions::ID,
+                spl_token_program: token::ID,
+            };
 
-        // Define the instruction arguments
-        let args = CreateV1InstructionArgs {
-            name: params.token_name.clone(),
-            symbol: params.ticker.clone(), // IPFS hash (?)
-            uri: params.metadata_uri.clone(),
-            seller_fee_basis_points: 0, // TODO: Specify the royalty fee if needed (?)
-            creators: None,             // NFTs
-            primary_sale_happened: false, // (?)
-            is_mutable: false,          // TODO: pass from transaction
-            token_standard: TokenStandard::Fungible,
-            collection: None,         // NFTs
-            uses: None,               // (?)
-            collection_details: None, // // NFTs
-            rule_set: None,           // Specify the rule set Pubkey (?)
-            decimals: Some(9),
-            print_supply: None, // NFTs
-        };
+            // Build the instruction args
+            let args = CreateV1InstructionArgs {
+                name: owned_token.token_name.clone(),
+                symbol: owned_token.ticker.clone(),
+                uri: owned_token.metadata_uri.clone(),
+                seller_fee_basis_points: 0,
+                creators: None,
+                primary_sale_happened: false,
+                is_mutable: false,
+                token_standard: TokenStandard::Fungible,
+                collection: None,
+                uses: None,
+                collection_details: None,
+                rule_set: None,
+                decimals: Some(9),
+                print_supply: None,
+            };
 
-        // Create the instruction
-        let create_md_ix = create_metadata_accounts_v1.instruction(args);
+            let create_md_ix = create_metadata_accounts_v1.instruction(args);
 
-        // Invoke the instruction
-        invoke(
-            &create_md_ix,
-            &[
-                ctx.accounts.token_metadata_program.to_account_info(),
-                ctx.accounts.mint.to_account_info(),
-                ctx.accounts.owner.to_account_info(),
-                ctx.accounts.system_program.to_account_info(),
-            ],
-        )?;
+            // Invoke Metaplex metadata creation
+            invoke(
+                &create_md_ix,
+                &[
+                    ctx.accounts.token_metadata_program.to_account_info(),
+                    ctx.accounts.mint.to_account_info(),
+                    ctx.accounts.owner.to_account_info(),
+                    ctx.accounts.system_program.to_account_info(),
+                ],
+            )?;
+        }
 
-        // 4. Emit event for the newly created token
-        let owned_token = &ctx.accounts.owned_token;
-        emit!(TokenLaunched {
-            token_name: owned_token.token_name.clone(),
-            ticker: owned_token.ticker.clone(),
-            supply: owned_token.supply,
-            initial_buy_amount: owned_token.initial_buy_amount,
-            initial_buy_price: owned_token.initial_buy_price,
-            target_chains: owned_token.target_chains.clone(),
-            public_token: owned_token.public_token,
-            bonding_curve_coefficients: owned_token.bonding_curve_coefficients.clone(),
-        });
+        // 4. Emit TokenLaunched event
+        {
+            let owned_token = &ctx.accounts.owned_token;
+            emit!(TokenLaunched {
+                token_name: owned_token.token_name.clone(),
+                ticker: owned_token.ticker.clone(),
+                supply: owned_token.supply,
+                initial_buy_amount: owned_token.initial_buy_amount,
+                initial_buy_price: owned_token.initial_buy_price,
+                target_chains: owned_token.target_chains.clone(),
+                public_token: owned_token.public_token,
+                bonding_curve_coefficients: owned_token.bonding_curve_coefficients.clone(),
+            });
+        }
 
         Ok(())
     }
 }
 
-/// Context for the "create_owned_token" instruction
+/// Context for launch_token
 #[derive(Accounts)]
-pub struct CreateOwnedToken<'info> {
-    /// Minimal bonding-curve info
+pub struct LaunchToken<'info> {
+    /// Initialize OwnedToken account
     #[account(init, payer = owner, space = OwnedToken::LEN)]
     pub owned_token: Account<'info, OwnedToken>,
 
-    /// The owner initializing the token
+    /// Owner of the token
     #[account(mut)]
     pub owner: Signer<'info>,
-
-    /// The public token liquidity pool
-    #[account(mut)]
-    pub owned_token_pool: Account<'info, TokenAccount>,
 
     /// Mint account for the new token
     #[account(
@@ -157,16 +156,14 @@ pub struct CreateOwnedToken<'info> {
     )]
     pub owner_token_account: Account<'info, TokenAccount>,
 
-    /// Metaplex Token Metadata Program (for optional metadata creation)
+    /// Metaplex Token Metadata program
     #[account(address = MPL_METADATA_ID)]
+    /// CHECK: This is the official Metaplex Token Metadata program account.
     pub token_metadata_program: UncheckedAccount<'info>,
 
-    /// System program
     pub system_program: Program<'info, System>,
 
-    /// Associated Token program
     pub associated_token_program: Program<'info, AssociatedToken>,
 
-    /// SPL Token program
     pub token_program: Program<'info, Token>,
 }

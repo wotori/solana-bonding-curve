@@ -31,6 +31,9 @@ pub struct OwnedToken {
 
     /// Bonding curve coefficients for price calculations
     pub bonding_curve_coefficients: BondingCurveCoefficients,
+
+    /// URI
+    pub metadata_uri: String,
 }
 
 impl OwnedToken {
