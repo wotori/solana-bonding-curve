@@ -4,14 +4,17 @@
 seeds = false
 skip-lint = false
 
+[programs.devnet]
+bonding_curve = "Da4dAJgYgs6Z4pcWWZzzvpdprtUB9hUDvoHkyJpQNYBz"
+
 [programs.localnet]
-solana_bonding_curve = "E48ijHDaZqdVBiGgCGGJRQTM373TsjYPGv8rpVzu4P9R"
+bonding_curve = "Da4dAJgYgs6Z4pcWWZzzvpdprtUB9hUDvoHkyJpQNYBz"
 
 [registry]
 url = "https://api.apr.dev"
 
 [provider]
-cluster = "Localnet"
+cluster = "localnet"
 wallet = "/Users/wotori/.config/solana/id.json"
 
 [scripts]

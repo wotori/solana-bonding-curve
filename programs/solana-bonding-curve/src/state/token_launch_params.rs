@@ -1,5 +1,5 @@
 use anchor_lang::prelude::*;
-use anchor_lang::{prelude::Pubkey, AnchorDeserialize, AnchorSerialize};
+use anchor_lang::{AnchorDeserialize, AnchorSerialize};
 
 use super::{BondingCurveCoefficients, TargetChain};
 
@@ -18,6 +18,5 @@ pub struct TokenLaunchParams {
     pub initial_buy_amount: u64,
     pub initial_buy_price: f64,
     pub target_chains: Vec<TargetChain>,
-    pub public_token: Pubkey,
     pub bonding_curve_coefficients: BondingCurveCoefficients,
 }

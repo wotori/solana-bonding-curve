@@ -13,7 +13,7 @@ pub mod state;
 use events::TokenLaunched;
 use state::{OwnedToken, TokenLaunchParams};
 
-declare_id!("E48ijHDaZqdVBiGgCGGJRQTM373TsjYPGv8rpVzu4P9R");
+declare_id!("Da4dAJgYgs6Z4pcWWZzzvpdprtUB9hUDvoHkyJpQNYBz");
 
 #[program]
 pub mod bonding_curve {
