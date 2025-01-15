@@ -1,6 +1,8 @@
 # Bonding Curve – Solana
 A bonding curve program with enhanced features for the Xyber project. Includes token locking logic, liquidity pool creation, and more. 
 
+<img src="logo.png" alt="solana-bonding-curve" width="300" height="300">
+
 ## Testing Instructions
 
 Below are common commands and steps for testing your Solana programs in both local and devnet environments.
