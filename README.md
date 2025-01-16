@@ -9,6 +9,11 @@ Below are common commands and steps for testing your Solana programs in both loc
 
 ---
 
+### 0. Generate dev-net keypair
+```bash
+solana-keygen new --outfile ~/.config/solana/devnet-owner.json
+```
+
 ### 1. Airdrop More Than the Daily Limit on Devnet
 If you need more than the default devnet faucet limit, register at [Solana Faucet](https://faucet.solana.com/) with your GitHub account to request larger amounts of SOL.
 
@@ -28,22 +33,24 @@ solana balance
 ```
 
 ### 4. Run a Local Validator and Tests
-```
+```bash
 solana-test-validator
 anchor test --skip-local-validator
 ```
 
 ### 5. Airdrop on Localnet
-```
+```bash
 solana airdrop 10 <YOUR_WALLET_ADDRESS> --url http://127.0.0.1:8899
 ```
 
 ### 6. Run Tests on Devnet
-```
+```bash
 anchor test --provider.cluster devnet
+
+anchor test --skip-build --skip-deploy --provider.cluster devnet
 ```
 
 ### 7. Standard Testing (Localnet Auto-Spawned)
-```
+```bash
 anchor test
 ```

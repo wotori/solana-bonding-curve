@@ -14,7 +14,7 @@ bonding_curve = "Da4dAJgYgs6Z4pcWWZzzvpdprtUB9hUDvoHkyJpQNYBz"
 url = "https://api.apr.dev"
 
 [provider]
-cluster = "localnet"
+cluster = "devnet"
 wallet = "/Users/wotori/.config/solana/id.json"
 
 [scripts]
