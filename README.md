@@ -5,52 +5,67 @@ A bonding curve program with enhanced features for the Xyber project. Includes t
 
 ## Testing Instructions
 
-Below are common commands and steps for testing your Solana programs in both local and devnet environments.
+Below are common commands and steps for testing Solana programs in both local and devnet environments.
+
+Note: Tests may not fully run on localnet at this time because the Metaplex program is required on localnet. For that reason, tests can currently only be run in full on devnet.
+
+It may also be useful to note that after generating your devnet wallet, you can add its key array directly to Phantom so you can see tokens appear in your wallet.
 
 ---
 
-### 0. Generate dev-net keypair
+### 1. Generate dev-net keypair
 ```bash
 solana-keygen new --outfile ~/.config/solana/devnet-owner.json
 ```
 
-### 1. Airdrop More Than the Daily Limit on Devnet
+### 2. Airdrop More Than the Daily Limit on Devnet
 If you need more than the default devnet faucet limit, register at [Solana Faucet](https://faucet.solana.com/) with your GitHub account to request larger amounts of SOL.
 
-### 2. Switch Between Devnet and Localnet
+### 3. Airdrop on Localnet
 ```bash
-# Set your CLI to Devnet
+solana airdrop 10 <YOUR_WALLET_ADDRESS> --url http://127.0.0.1:8899
+```
+
+### 4. Switch Between Devnet and Localnet
+```bash
+# Set CLI to Devnet
 solana config set --url devnet
 
-# Or set your CLI to Localnet
+# Or set CLI to Localnet
 solana config set --url http://127.0.0.1:8899
 ```
 
-### 3. Get Your Solana Address and Check Balance
-```
+### 5. Get Your Solana Address and Check Balance
+```bash
 solana address
 solana balance
 ```
 
-### 4. Run a Local Validator and Tests
+### 6. Build and Deploy Solana Program
+```bash
+anchor build
+anchor deploy
+
+# or
+make bd
+```
+
+### 7. Run a Local Validator and Tests
 ```bash
 solana-test-validator
 anchor test --skip-local-validator
 ```
 
-### 5. Airdrop on Localnet
-```bash
-solana airdrop 10 <YOUR_WALLET_ADDRESS> --url http://127.0.0.1:8899
-```
-
-### 6. Run Tests on Devnet
+### 7. Run Tests on Devnet
 ```bash
 anchor test --provider.cluster devnet
-
+#or
 anchor test --skip-build --skip-deploy --provider.cluster devnet
+#or
+make test-dev
 ```
 
-### 7. Standard Testing (Localnet Auto-Spawned)
+### 8. Standard Testing (Localnet Auto-Spawned)
 ```bash
 anchor test
 ```
