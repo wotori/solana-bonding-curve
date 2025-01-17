@@ -56,7 +56,7 @@ solana-test-validator
 anchor test --skip-local-validator
 ```
 
-### 7. Run Tests on Devnet
+### 8. Run Tests on Devnet
 ```bash
 anchor test --provider.cluster devnet
 #or
@@ -65,7 +65,7 @@ anchor test --skip-build --skip-deploy --provider.cluster devnet
 make test-dev
 ```
 
-### 8. Standard Testing (Localnet Auto-Spawned)
+### 9. Standard Testing (Localnet Auto-Spawned)
 ```bash
 anchor test
 ```
