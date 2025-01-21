@@ -3,3 +3,6 @@ test-dev:
 
 bd:
 	anchor build && anchor deploy
+
+bdt:
+	make bd && make test-dev

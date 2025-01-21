@@ -136,21 +136,19 @@ pub mod bonding_curve {
         // to pass it immutably to the CPI context. So do our checks using
         // an immutable reference first:
         //
-        {
-            let owned_token = &ctx.accounts.owned_token; // IMMUTABLE borrow
-            require!(
-                amount <= owned_token.supply,
-                CustomError::InsufficientTokenSupply
-            );
-        }
+        let owned_token = &ctx.accounts.owned_token; // IMMUTABLE borrow
+        require!(
+            amount <= owned_token.supply,
+            CustomError::InsufficientTokenSupply
+        );
 
         // Calculate cost in lamports
-        let total_cost = {
-            let owned_token = &ctx.accounts.owned_token; // IMMUTABLE again
-            amount
-                .checked_mul(owned_token.price_lamports)
-                .ok_or(CustomError::MathOverflow)?
-        };
+        let decimals_base = 10_u64.pow(9);
+        let total_cost = amount
+            .checked_mul(owned_token.price_lamports)
+            .ok_or(CustomError::MathOverflow)?
+            .checked_div(decimals_base)
+            .ok_or(CustomError::MathOverflow)?;
 
         //
         // STEP 2: CPI calls referencing `owned_token.to_account_info()`
@@ -232,8 +230,11 @@ pub mod bonding_curve {
         //
         let total_return = {
             let owned_token = &ctx.accounts.owned_token; // IMMUTABLE borrow
+            let decimals_base = 10_u64.pow(9);
             amount
                 .checked_mul(owned_token.price_lamports)
+                .ok_or(CustomError::MathOverflow)?
+                .checked_div(decimals_base)
                 .ok_or(CustomError::MathOverflow)?
         };
         {
@@ -302,8 +303,8 @@ impl OwnedToken {
 #[derive(Accounts)]
 #[instruction(total_supply: u64, initial_mint_amount: u64, price_lamports: u64)]
 pub struct CreateToken<'info> {
-    /// CHECK: seed
     #[account()]
+    /// CHECK: seed
     pub token_seed: UncheckedAccount<'info>,
 
     #[account(mut)]
@@ -334,19 +335,19 @@ pub struct CreateToken<'info> {
     )]
     pub creator_token_account: Account<'info, TokenAccount>,
 
+    pub associated_token_program: Program<'info, AssociatedToken>,
+    pub token_program: Program<'info, Token>,
+
     #[account(address = system_program::ID)]
     /// CHECK: System Program
     pub system_program: UncheckedAccount<'info>,
-
-    pub associated_token_program: Program<'info, AssociatedToken>,
-    pub token_program: Program<'info, Token>,
 }
 
 // SetMetadata Context
 #[derive(Accounts)]
 pub struct SetMetadata<'info> {
-    /// CHECK: seed
     #[account()]
+    /// CHECK: seed
     pub token_seed: UncheckedAccount<'info>,
 
     #[account(mut)]
@@ -359,21 +360,17 @@ pub struct SetMetadata<'info> {
     )]
     pub owned_token: Account<'info, OwnedToken>,
 
-    /// CHECK: The mint
     #[account(mut)]
+    /// CHECK: The mint
     pub mint: UncheckedAccount<'info>,
 
-    /// CHECK: Metadata PDA
     #[account(mut)]
+    /// CHECK: Metadata PDA
     pub metadata: UncheckedAccount<'info>,
 
     #[account(address = mpl_token_metadata::ID)]
     /// CHECK: Metaplex Token Metadata program
     pub token_metadata_program: UncheckedAccount<'info>,
-
-    #[account(address = system_program::ID)]
-    /// CHECK: System Program
-    pub system_program: UncheckedAccount<'info>,
 
     #[account(address = anchor_spl::token::ID)]
     /// CHECK: SPL Token
@@ -382,20 +379,24 @@ pub struct SetMetadata<'info> {
     #[account(address = anchor_lang::solana_program::sysvar::instructions::ID)]
     /// CHECK: Sysvar Instructions
     pub sysvar_instructions: UncheckedAccount<'info>,
+
+    #[account(address = system_program::ID)]
+    /// CHECK: System Program
+    pub system_program: UncheckedAccount<'info>,
 }
 
 // BuyToken Context
 #[derive(Accounts)]
 pub struct BuyToken<'info> {
-    /// CHECK: seed
     #[account()]
+    /// CHECK: seed
     pub token_seed: UncheckedAccount<'info>,
 
     #[account(mut)]
     pub buyer: Signer<'info>,
 
-    /// CHECK: seed
     #[account()]
+    /// CHECK: seed
     pub creator: UncheckedAccount<'info>,
 
     #[account(
@@ -416,26 +417,26 @@ pub struct BuyToken<'info> {
     )]
     pub buyer_token_account: Account<'info, TokenAccount>,
 
+    pub associated_token_program: Program<'info, AssociatedToken>,
+    pub token_program: Program<'info, Token>,
+
     #[account(address = system_program::ID)]
     /// CHECK: System Program
     pub system_program: UncheckedAccount<'info>,
-
-    pub associated_token_program: Program<'info, AssociatedToken>,
-    pub token_program: Program<'info, Token>,
 }
 
 // SellToken Context
 #[derive(Accounts)]
 pub struct SellToken<'info> {
-    /// CHECK: seed
     #[account()]
+    /// CHECK: seed
     pub token_seed: UncheckedAccount<'info>,
 
     #[account(mut)]
     pub user: Signer<'info>,
 
-    /// CHECK: seed
     #[account()]
+    /// CHECK: seed
     pub creator: UncheckedAccount<'info>,
 
     #[account(
@@ -454,11 +455,11 @@ pub struct SellToken<'info> {
     )]
     pub user_token_account: Account<'info, TokenAccount>,
 
+    pub token_program: Program<'info, Token>,
+
     #[account(address = system_program::ID)]
     /// CHECK: System Program
     pub system_program: UncheckedAccount<'info>,
-
-    pub token_program: Program<'info, Token>,
 }
 
 // ------------------------------------------------------------------------
