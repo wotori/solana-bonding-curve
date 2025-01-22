@@ -8,6 +8,10 @@ use anchor_spl::metadata::mpl_token_metadata::{
 };
 use anchor_spl::token::{self, Burn, Mint, MintTo, Token, TokenAccount};
 
+mod curves;
+#[allow(unused_imports)]
+use curves::SmoothBondingCurve;
+
 declare_id!("BqrcBeCGtK1qasqykoFydSEV31iEYTuPnUW1mpsptv5W");
 
 #[program]

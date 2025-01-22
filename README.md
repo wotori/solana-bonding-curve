@@ -3,6 +3,26 @@ A bonding curve program with enhanced features for the Xyber project. Includes t
 
 <img src="logo.png" alt="solana-bonding-curve" width="300" height="300">
 
+## Formula
+
+We used the following formula to define the bonding curve:
+
+**y(x) = A - K / (C + x)**
+
+This formula represents the cumulative minted tokens (y) as a function of the base asset contributed (x). The parameters are:
+
+- **A**: Maximum number of tokens (asymptotic limit)
+- **K**: Determines the "speed" of approaching the maximum
+- **C**: Virtual pool or offset value
+
+For visualization, a script is available in the `qa` folder that generates the curve. 
+
+### Example Visualization
+
+Below is an example of the bonding curve:
+
+<img src="bonding_curve.png" alt="Solana Bonding Curve" width="400" height="300">
+
 ## Testing Instructions
 
 Below are common commands and steps for testing Solana programs in both local and devnet environments.
