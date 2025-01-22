@@ -16,6 +16,8 @@ It may also be useful to note that after generating your devnet wallet, you can 
 ### 1. Generate dev-net keypair
 ```bash
 solana-keygen new --outfile ~/.config/solana/devnet-owner.json
+
+solana-keygen new --outfile ~/.config/solana/devnet-buyer.json
 ```
 
 ### 2. Airdrop More Than the Daily Limit on Devnet
