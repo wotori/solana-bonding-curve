@@ -45,7 +45,7 @@ def main():
 
     plt.title("Bonding Curve: Minted Tokens & Price")
     plt.tight_layout()
-    plt.savefig("bonding_curve.png", dpi=70)
+    # plt.savefig("bonding_curve.png", dpi=70)
     plt.show()
 
 if __name__ == "__main__":

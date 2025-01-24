@@ -1,4 +1,5 @@
 use super::traits::BondingCurveTrait;
+use anchor_lang::prelude::*;
 
 /// A smooth bonding curve tracking the total base asset (e.g., SOL, XBT) deposited.
 ///
@@ -7,7 +8,7 @@ use super::traits::BondingCurveTrait;
 /// - K = 32,190,005,730
 /// - C = 30
 /// - x = total base asset contributed so far
-#[derive(Debug, Clone)]
+#[derive(AnchorSerialize, AnchorDeserialize, Debug, Clone)]
 pub struct SmoothBondingCurve {
     pub a: f64, // Asymptotic total token supply (A)
     pub k: f64, // Controls how quickly we approach A (K)
@@ -191,8 +192,8 @@ mod tests {
 
         let target_liquidity_usd = 70_000.0;
         let sol_price_usd = 250.0;
-        let base_in: f64 = 1.0;
-        let iters: u16 = 1000;
+        let base_in: f64 = 0.01;
+        let iters: u16 = 100;
         // If 1 SOL costs $250, then for $70,000 we need 70,000/250 = 280 SOL in total.
         let target_sol_in_pool = target_liquidity_usd / sol_price_usd;
 
@@ -205,7 +206,7 @@ mod tests {
             let total_pool_sol = curve.x;
 
             println!(
-                "Iteration {iteration}: bought 1 SOL => minted {minted:.2} tokens, \
+                "Iteration {iteration}: bought 0.01 SOL => minted {minted:.2} tokens, \
                  new marginal price = {:.2e}, total SOL in pool = {:.2}",
                 new_price, total_pool_sol
             );

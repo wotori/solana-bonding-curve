@@ -8,11 +8,12 @@ use anchor_spl::metadata::mpl_token_metadata::{
 };
 use anchor_spl::token::{self, Burn, Mint, MintTo, Token, TokenAccount};
 
-mod curves;
-#[allow(unused_imports)]
+// Local bonding curve module
+pub mod curves;
+use curves::traits::BondingCurveTrait;
 use curves::SmoothBondingCurve;
 
-declare_id!("BqrcBeCGtK1qasqykoFydSEV31iEYTuPnUW1mpsptv5W");
+declare_id!("Hcr3N3zXbfZ7vc43mkG9ftHuB55rPo2piT81tXcUcCEN");
 
 #[program]
 pub mod bonding_curve {
@@ -21,21 +22,79 @@ pub mod bonding_curve {
     use anchor_lang::system_program::Transfer;
 
     // ------------------------------------------------------------------------
-    // 1) CREATE TOKEN (no escrow here!)
+    // (1) CREATE TOKEN
+    //   - Create and initialize the OwnedToken PDA
+    //   - Create the Mint (with authority = OwnedToken PDA)
+    //   - Create the creator's Associated Token Account (ATA)
+    //   - Initialize the bonding curve and supply in OwnedToken
     // ------------------------------------------------------------------------
-    pub fn create_token_instruction(
-        ctx: Context<CreateToken>,
-        total_supply: u64,
-        initial_mint_amount: u64,
-        price_lamports: u64,
-    ) -> Result<()> {
-        // Store token data in OwnedToken
+    pub fn create_token_instruction(ctx: Context<CreateToken>) -> Result<()> {
         let owned_token = &mut ctx.accounts.owned_token;
-        owned_token.supply = total_supply;
-        owned_token.price_lamports = price_lamports;
-        // We do *not* set escrow_pda or escrow_bump here anymore!
+        // Example: set initial supply to a large number so can "subtract" from it later.
+        owned_token.supply = 1_073_000_191;
 
-        // Mint initial tokens to creator
+        // Initialize bonding curve
+        owned_token.bonding_curve = SmoothBondingCurve {
+            a: 1_073_000_191.0,
+            k: 32_190_005_730.0,
+            c: 30.0,
+            x: 0.0,
+        };
+
+        // No escrow or token minting logic here—just the creation of the main PDAs.
+        Ok(())
+    }
+
+    // ------------------------------------------------------------------------
+    // (2) INIT ESCROW
+    //   - Create the escrow PDA
+    // ------------------------------------------------------------------------
+    pub fn init_escrow_instruction(ctx: Context<InitEscrow>) -> Result<()> {
+        let owned_token = &mut ctx.accounts.owned_token;
+        owned_token.escrow_pda = ctx.accounts.escrow_pda.key();
+        owned_token.escrow_bump = ctx.bumps.escrow_pda;
+        Ok(())
+    }
+
+    // ------------------------------------------------------------------------
+    // (3) MINT INITIAL TOKENS
+    //   - Transfer lamports from creator -> escrow
+    //   - Use bonding curve to calculate how many tokens that buys
+    //   - Mint them to creator's ATA
+    //   - Subtract from OwnedToken.supply
+    // ------------------------------------------------------------------------
+    pub fn mint_initial_tokens_instruction(
+        ctx: Context<MintInitialTokens>,
+        deposit_lamports: u64,
+    ) -> Result<()> {
+        // 1) Transfer lamports from `creator` to Escrow PDA
+        let cpi_ctx = CpiContext::new(
+            ctx.accounts.system_program.to_account_info(),
+            Transfer {
+                from: ctx.accounts.creator.to_account_info(),
+                to: ctx.accounts.escrow_pda.to_account_info(),
+            },
+        );
+        system_program::transfer(cpi_ctx, deposit_lamports)?;
+
+        // 2) Calculate the token amount via the bonding curve
+        let sol_deposit = (deposit_lamports as f64) / 1_000_000_000.0; // TODO: do we really need it?!
+
+        let minted_tokens_f64 = ctx
+            .accounts
+            .owned_token
+            .bonding_curve
+            .buy_exact_input(sol_deposit);
+        let minted_tokens_u64 = minted_tokens_f64.round() as u64;
+
+        msg!(
+            "DEBUG: deposit_lamports={}, sol_deposit={}, minted_tokens_f64={}",
+            deposit_lamports,
+            sol_deposit,
+            minted_tokens_f64
+        );
+
+        // 3) Mint these tokens to the creator's ATA
         let bump = ctx.bumps.owned_token;
         let creator_key = ctx.accounts.creator.key();
         let token_seed_key = ctx.accounts.token_seed.key();
@@ -56,24 +115,21 @@ pub mod bonding_curve {
                 },
                 &[signer_seeds],
             ),
-            initial_mint_amount,
+            minted_tokens_u64,
         )?;
 
-        Ok(())
-    }
-
-    // ------------------------------------------------------------------------
-    // 2) INIT ESCROW (separate instruction)
-    // ------------------------------------------------------------------------
-    pub fn init_escrow_instruction(ctx: Context<InitEscrow>) -> Result<()> {
+        // 4) Reduce the supply in OwnedToken (now using mutable borrow)
         let owned_token = &mut ctx.accounts.owned_token;
-        owned_token.escrow_pda = ctx.accounts.escrow_pda.key();
-        owned_token.escrow_bump = ctx.bumps.escrow_pda;
+        owned_token.supply = owned_token
+            .supply
+            .checked_sub(minted_tokens_u64)
+            .ok_or(CustomError::MathOverflow)?;
+
         Ok(())
     }
 
     // ------------------------------------------------------------------------
-    // SET METADATA
+    // (4) SET METADATA
     // ------------------------------------------------------------------------
     pub fn set_metadata_instruction(
         ctx: Context<SetMetadata>,
@@ -144,67 +200,58 @@ pub mod bonding_curve {
     // BUY TOKENS
     // ------------------------------------------------------------------------
     pub fn buy_instruction(ctx: Context<BuyToken>, amount: u64) -> Result<()> {
-        // 1) Check supply
-        let owned_token = &ctx.accounts.owned_token;
-        require!(
-            amount <= owned_token.supply,
-            CustomError::InsufficientTokenSupply
-        );
-
-        // 2) Calculate cost
-        let decimals_base = 10_u64.pow(9);
-        let total_cost = amount
-            .checked_mul(owned_token.price_lamports)
-            .ok_or(CustomError::MathOverflow)?
-            .checked_div(decimals_base)
-            .ok_or(CustomError::MathOverflow)?;
-
-        // 3) Transfer lamports buyer -> escrow_pda
-        {
-            let cpi_ctx = CpiContext::new(
-                ctx.accounts.system_program.to_account_info(),
-                Transfer {
-                    from: ctx.accounts.buyer.to_account_info(),
-                    to: ctx.accounts.escrow_pda.to_account_info(),
-                },
-            );
-            system_program::transfer(cpi_ctx, total_cost)?;
-        }
-
-        // 4) Mint `amount` tokens to buyer
-        {
-            let bump = ctx.bumps.owned_token;
-            let creator_key = ctx.accounts.creator.key();
-            let token_seed_key = ctx.accounts.token_seed.key();
-            let signer_seeds = &[
-                b"owned_token".as_ref(),
-                creator_key.as_ref(),
-                token_seed_key.as_ref(),
-                &[bump],
-            ];
-
-            token::mint_to(
-                CpiContext::new_with_signer(
-                    ctx.accounts.token_program.to_account_info(),
-                    MintTo {
-                        mint: ctx.accounts.mint.to_account_info(),
-                        to: ctx.accounts.buyer_token_account.to_account_info(),
-                        authority: ctx.accounts.owned_token.to_account_info(),
-                    },
-                    &[signer_seeds],
-                ),
-                amount,
-            )?;
-        }
-
-        // 5) Decrease supply
-        {
+        // 1) Calculate cost based on the bonding curve + check supply
+        let cost = {
             let owned_token = &mut ctx.accounts.owned_token;
-            owned_token.supply = owned_token
-                .supply
-                .checked_sub(amount)
-                .ok_or(CustomError::MathOverflow)?;
-        }
+            require!(
+                amount <= owned_token.supply,
+                CustomError::InsufficientTokenSupply
+            );
+
+            let cost_f64 = owned_token.bonding_curve.buy_exact_output(amount as f64);
+            cost_f64.round() as u64
+        };
+
+        // 2) Transfer lamports from buyer -> escrow
+        let cpi_ctx = CpiContext::new(
+            ctx.accounts.system_program.to_account_info(),
+            Transfer {
+                from: ctx.accounts.buyer.to_account_info(),
+                to: ctx.accounts.escrow_pda.to_account_info(),
+            },
+        );
+        system_program::transfer(cpi_ctx, cost)?;
+
+        // 3) Mint tokens to the buyer
+        let bump = ctx.bumps.owned_token;
+        let creator_key = ctx.accounts.creator.key();
+        let token_seed_key = ctx.accounts.token_seed.key();
+        let signer_seeds = &[
+            b"owned_token".as_ref(),
+            creator_key.as_ref(),
+            token_seed_key.as_ref(),
+            &[bump],
+        ];
+
+        token::mint_to(
+            CpiContext::new_with_signer(
+                ctx.accounts.token_program.to_account_info(),
+                MintTo {
+                    mint: ctx.accounts.mint.to_account_info(),
+                    to: ctx.accounts.buyer_token_account.to_account_info(),
+                    authority: ctx.accounts.owned_token.to_account_info(),
+                },
+                &[signer_seeds],
+            ),
+            amount,
+        )?;
+
+        // 4) Update the supply
+        let owned_token = &mut ctx.accounts.owned_token;
+        owned_token.supply = owned_token
+            .supply
+            .checked_sub(amount)
+            .ok_or(CustomError::MathOverflow)?;
 
         Ok(())
     }
@@ -214,64 +261,53 @@ pub mod bonding_curve {
     // ------------------------------------------------------------------------
     pub fn sell_instruction(ctx: Context<SellToken>, amount: u64) -> Result<()> {
         // 1) Burn user's tokens
-        {
-            let cpi_ctx = CpiContext::new(
-                ctx.accounts.token_program.to_account_info(),
-                Burn {
-                    from: ctx.accounts.user_token_account.to_account_info(),
-                    mint: ctx.accounts.mint.to_account_info(),
-                    authority: ctx.accounts.user.to_account_info(),
-                },
-            );
-            token::burn(cpi_ctx, amount)?;
-        }
+        let cpi_ctx = CpiContext::new(
+            ctx.accounts.token_program.to_account_info(),
+            Burn {
+                from: ctx.accounts.user_token_account.to_account_info(),
+                mint: ctx.accounts.mint.to_account_info(),
+                authority: ctx.accounts.user.to_account_info(),
+            },
+        );
+        token::burn(cpi_ctx, amount)?;
 
-        // 2) Calculate lamports to return
-        let owned_token = &ctx.accounts.owned_token;
-        let decimals_base = 10_u64.pow(9);
-        let total_return = amount
-            .checked_mul(owned_token.price_lamports)
-            .ok_or(CustomError::MathOverflow)?
-            .checked_div(decimals_base)
-            .ok_or(CustomError::MathOverflow)?;
+        // 2) Calculate how much SOL to return
+        let owned_token = &mut ctx.accounts.owned_token;
+        let base_return_f64 = owned_token.bonding_curve.sell_exact_input(amount as f64);
+        let base_return = base_return_f64.round() as u64;
 
-        // 3) Transfer lamports from escrow_pda -> user
-        {
-            let bump = owned_token.escrow_bump;
-            let creator_key = ctx.accounts.creator.key();
-            let token_seed_key = ctx.accounts.token_seed.key();
+        // 3) Transfer SOL from escrow -> user
+        let bump = owned_token.escrow_bump;
+        let creator_key = ctx.accounts.creator.key();
+        let token_seed_key = ctx.accounts.token_seed.key();
 
-            let escrow_seeds = &[
-                b"escrow".as_ref(),
-                creator_key.as_ref(),
-                token_seed_key.as_ref(),
-                &[bump],
-            ];
+        let escrow_seeds = &[
+            b"escrow".as_ref(),
+            creator_key.as_ref(),
+            token_seed_key.as_ref(),
+            &[bump],
+        ];
 
-            let transfer_ix = anchor_lang::solana_program::system_instruction::transfer(
-                &ctx.accounts.escrow_pda.key(),
-                &ctx.accounts.user.key(),
-                total_return,
-            );
-            invoke_signed(
-                &transfer_ix,
-                &[
-                    ctx.accounts.escrow_pda.to_account_info(),
-                    ctx.accounts.user.to_account_info(),
-                    ctx.accounts.system_program.to_account_info(),
-                ],
-                &[escrow_seeds],
-            )?;
-        }
+        let transfer_ix = anchor_lang::solana_program::system_instruction::transfer(
+            &ctx.accounts.escrow_pda.key(),
+            &ctx.accounts.user.key(),
+            base_return,
+        );
+        invoke_signed(
+            &transfer_ix,
+            &[
+                ctx.accounts.escrow_pda.to_account_info(),
+                ctx.accounts.user.to_account_info(),
+                ctx.accounts.system_program.to_account_info(),
+            ],
+            &[escrow_seeds],
+        )?;
 
         // 4) Increase supply
-        {
-            let owned_token = &mut ctx.accounts.owned_token;
-            owned_token.supply = owned_token
-                .supply
-                .checked_add(amount)
-                .ok_or(CustomError::MathOverflow)?;
-        }
+        owned_token.supply = owned_token
+            .supply
+            .checked_add(amount)
+            .ok_or(CustomError::MathOverflow)?;
 
         Ok(())
     }
@@ -281,33 +317,35 @@ pub mod bonding_curve {
 // ACCOUNTS
 // ------------------------------------------------------------------------
 
-/// Our main data struct (PDA) storing supply & price.
+/// The PDA storing bonding curve data, supply, and escrow info.
 #[account]
 pub struct OwnedToken {
     pub supply: u64,
-    pub price_lamports: u64,
+    pub bonding_curve: SmoothBondingCurve,
     pub escrow_pda: Pubkey,
     pub escrow_bump: u8,
 }
-// size = 8 discriminator + 8 + 8 + 32 + 1 = 57 bytes
 impl OwnedToken {
-    pub const LEN: usize = 8 + 8 + 8 + 32 + 1;
+    // 8 (discriminator)
+    // + 8 (supply)
+    // + 4 * 8 (4x f64 in bonding_curve)
+    // + 32 (escrow_pda pubkey)
+    // + 1 (escrow_bump)
+    pub const LEN: usize = 8 + 8 + (8 * 4) + 32 + 1;
 }
 
 // ------------------------------------------------------------------------
-//  CreateToken
+// (1) CreateToken (no escrow logic here)
 // ------------------------------------------------------------------------
 #[derive(Accounts)]
-#[instruction(total_supply: u64, initial_mint_amount: u64, price_lamports: u64)]
 pub struct CreateToken<'info> {
-    /// CHECK: seed
+    /// CHECK: arbitrary seed
     #[account()]
     pub token_seed: UncheckedAccount<'info>,
 
     #[account(mut)]
     pub creator: Signer<'info>,
 
-    // OwnedToken
     #[account(
         init,
         payer = creator,
@@ -317,7 +355,6 @@ pub struct CreateToken<'info> {
     )]
     pub owned_token: Account<'info, OwnedToken>,
 
-    // Mint
     #[account(
         init,
         payer = creator,
@@ -326,7 +363,6 @@ pub struct CreateToken<'info> {
     )]
     pub mint: Account<'info, Mint>,
 
-    // Creator's ATA
     #[account(
         init_if_needed,
         payer = creator,
@@ -339,6 +375,11 @@ pub struct CreateToken<'info> {
     pub associated_token_program: Program<'info, AssociatedToken>,
     pub token_program: Program<'info, Token>,
 
+    // Not used in create_token, but typically
+    // required by the same client code flow
+    /// CHECK: Escrow account
+    pub escrow_pda: UncheckedAccount<'info>,
+
     // System
     #[account(address = system_program::ID)]
     /// CHECK: System Program
@@ -346,18 +387,17 @@ pub struct CreateToken<'info> {
 }
 
 // ------------------------------------------------------------------------
-//  InitEscrow: separate instruction now
+// (2) InitEscrow
 // ------------------------------------------------------------------------
 #[derive(Accounts)]
 pub struct InitEscrow<'info> {
-    /// CHECK: seed
+    /// CHECK: arbitrary seed
     #[account()]
     pub token_seed: UncheckedAccount<'info>,
 
     #[account(mut)]
     pub creator: Signer<'info>,
 
-    // Must be the same OwnedToken that was just created
     #[account(
         mut,
         seeds = [b"owned_token", creator.key().as_ref(), token_seed.key().as_ref()],
@@ -373,7 +413,7 @@ pub struct InitEscrow<'info> {
         owner = system_program::ID,
         space = 0
     )]
-    /// CHECK: Escrow account
+    /// CHECK: escrow for SOL
     pub escrow_pda: UncheckedAccount<'info>,
 
     // System
@@ -383,11 +423,54 @@ pub struct InitEscrow<'info> {
 }
 
 // ------------------------------------------------------------------------
-//  SetMetadata
+// (3) MintInitialTokens
+// ------------------------------------------------------------------------
+#[derive(Accounts)]
+#[instruction(deposit_lamports: u64)]
+pub struct MintInitialTokens<'info> {
+    /// CHECK: seed
+    #[account()]
+    pub token_seed: UncheckedAccount<'info>,
+
+    #[account(mut)]
+    pub creator: Signer<'info>,
+
+    #[account(
+        mut,
+        seeds = [b"owned_token", creator.key().as_ref(), token_seed.key().as_ref()],
+        bump
+    )]
+    pub owned_token: Account<'info, OwnedToken>,
+
+    #[account(
+        mut,
+        seeds = [b"escrow", creator.key().as_ref(), token_seed.key().as_ref()],
+        bump = owned_token.escrow_bump,
+        owner = system_program::ID
+    )]
+    /// CHECK: Escrow for SOL
+    pub escrow_pda: UncheckedAccount<'info>,
+
+    #[account(mut)]
+    pub mint: Account<'info, Mint>,
+
+    #[account(mut)]
+    pub creator_token_account: Account<'info, TokenAccount>,
+
+    // Programs
+    pub token_program: Program<'info, Token>,
+
+    #[account(address = system_program::ID)]
+    /// CHECK: System Program
+    pub system_program: UncheckedAccount<'info>,
+}
+
+// ------------------------------------------------------------------------
+// (4) SetMetadata
 // ------------------------------------------------------------------------
 #[derive(Accounts)]
 pub struct SetMetadata<'info> {
-    /// CHECK: seed
+    /// CHECK: arbitrary seed
     #[account()]
     pub token_seed: UncheckedAccount<'info>,
 
@@ -427,7 +510,7 @@ pub struct SetMetadata<'info> {
 }
 
 // ------------------------------------------------------------------------
-//  BuyToken
+// BuyToken
 // ------------------------------------------------------------------------
 #[derive(Accounts)]
 pub struct BuyToken<'info> {
@@ -479,7 +562,7 @@ pub struct BuyToken<'info> {
 }
 
 // ------------------------------------------------------------------------
-//  SellToken
+// SellToken
 // ------------------------------------------------------------------------
 #[derive(Accounts)]
 pub struct SellToken<'info> {
@@ -527,7 +610,7 @@ pub struct SellToken<'info> {
 }
 
 // ------------------------------------------------------------------------
-//  Errors
+// Errors
 // ------------------------------------------------------------------------
 #[error_code]
 pub enum CustomError {
