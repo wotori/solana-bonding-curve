@@ -4,228 +4,184 @@ use anchor_lang::prelude::*;
 /// A smooth bonding curve tracking the total base asset (e.g., SOL, XBT) deposited.
 ///
 /// Formula: y(x) = A - K / (C + x)
-/// - A = 1,073,000,191
-/// - K = 32,190,005,730
-/// - C = 30
-/// - x = total base asset contributed so far
+/// - `A` = asymptotic max token supply (in integer "token units")
+/// - `K` = dimension is (token * lamport), controlling how quickly we approach A
+/// - `C` = virtual pool offset (in lamports), e.g. 30 SOL -> 30_000_000_000 lamports
+/// - `x` = total base asset deposited so far (in lamports)
 #[derive(AnchorSerialize, AnchorDeserialize, Debug, Clone)]
 pub struct SmoothBondingCurve {
-    pub a: f64, // Asymptotic total token supply (A)
-    pub k: f64, // Controls how quickly we approach A (K)
-    pub c: f64, // Virtual pool – offset to avoid division by zero (C)
-    pub x: f64, // Total base asset deposited so far
+    pub a: u64,  // Asymptotic total token supply (in "raw" tokens)
+    pub k: u128, // Controls how quickly we approach A (token * lamport)
+    pub c: u64,  // Virtual pool offset (in lamports)
+    pub x: u64,  // Total base asset deposited (in lamports)
 }
 
 impl SmoothBondingCurve {
-    /// Returns the *marginal* price at the current state `x`.
-    /// Mathematically: price = dX/dY = (C + x)^2 / K.
-    pub fn _price(&self) -> f64 {
-        let denom = self.c + self.x;
-        (denom * denom) / self.k
-    }
-
-    /// Calculates the cumulative minted token supply at `x`.
-    fn y_of_x(&self, x_val: f64) -> f64 {
-        self.a - self.k / (self.c + x_val)
+    /// Calculates the total minted tokens at `x_val` lamports in the pool:
+    /// y(x) = A - (K / (C + x))   (all integer math)
+    fn y_of_x(&self, x_val: u64) -> u128 {
+        // c + x (in lamports), promoted to 128
+        let denom = (self.c as u128).saturating_add(x_val as u128);
+        // k / denom => yields "tokens" in integer
+        let k_over_denom = self.k.saturating_div(denom);
+        // A - k_over_denom => also "tokens"
+        // a is u64 (fits in 128), k_over_denom is u128
+        let a_minus = (self.a as u128).saturating_sub(k_over_denom);
+        a_minus
     }
 }
 
 impl BondingCurveTrait for SmoothBondingCurve {
-    fn buy_exact_input(&mut self, base_in: f64) -> f64 {
+    /// pass exact lamports, return exact tokens minted
+    fn buy_exact_input(&mut self, base_in: u64) -> u128 {
         let old_y = self.y_of_x(self.x);
-        let new_y = self.y_of_x(self.x + base_in);
-        let minted = new_y - old_y;
-        self.x += base_in;
+        let new_y = self.y_of_x(self.x.saturating_add(base_in));
+        let minted = new_y.saturating_sub(old_y);
+        self.x = self.x.saturating_add(base_in);
         minted
     }
 
-    fn buy_exact_output(&mut self, amount_out: f64) -> f64 {
+    /// pass exact tokens in, return exact lamports out
+    fn sell_exact_input(&mut self, tokens_in: u128) -> u64 {
         let old_y = self.y_of_x(self.x);
-        let target_y = old_y + amount_out;
-        let x_prime = (self.k / (self.a - target_y)) - self.c;
-        let cost = x_prime - self.x;
-        self.x = x_prime;
-        cost
-    }
+        // new_y = old_y - tokens_in
+        let new_y = old_y
+            .checked_sub(tokens_in)
+            .expect("Cannot sell more tokens than owned by curve state");
 
-    fn sell_exact_input(&mut self, tokens_in: f64) -> f64 {
-        let old_y = self.y_of_x(self.x);
-        let new_y = old_y - tokens_in;
-        let x_prime = (self.k / (self.a - new_y)) - self.c;
-        let base_out = self.x - x_prime;
-        self.x = x_prime;
-        base_out
-    }
+        // Solve for x' in: new_y = A - (K / (C + x')) => (K / (C + x')) = A - new_y
+        let a_minus_ny = (self.a as u128).saturating_sub(new_y);
+        let big_val = self.k.saturating_div(a_minus_ny); // = C + x'
+        if big_val < (self.c as u128) {
+            panic!("Curve underflow: c + x' is negative");
+        }
 
-    fn sell_exact_output(&mut self, amount_out: f64) -> f64 {
-        let old_y = self.y_of_x(self.x);
-        let new_x = self.x - amount_out;
-        let new_y = self.y_of_x(new_x);
-        let tokens_in = old_y - new_y;
-        self.x = new_x;
-        tokens_in
+        let x_prime = big_val.saturating_sub(self.c as u128);
+        let base_out = (self.x as u128).saturating_sub(x_prime);
+        self.x = x_prime as u64;
+        base_out as u64
     }
 }
-
 #[cfg(test)]
 mod tests {
     use super::*;
+    use anchor_lang::solana_program::native_token::LAMPORTS_PER_SOL;
 
     #[test]
     fn test_buy_exact_input() {
+        // Initialize the bonding curve with example parameters
         let mut curve = SmoothBondingCurve {
-            a: 1_073_000_191.0,
-            k: 32_190_005_730.0,
-            c: 30.0,
-            x: 0.0,
+            a: 1_073_000_191,
+            k: 32_190_005_730_000_000_000,
+            c: 30_000_000_000,
+            x: 0,
         };
-        let amount_in = 1.0;
-        let minted = curve.buy_exact_input(amount_in);
+
+        // Buy tokens with 1 SOL (in lamports)
+        let base_in = 1 * LAMPORTS_PER_SOL;
+        let minted = curve.buy_exact_input(base_in);
+
+        // Ensure the minted token amount is within the expected range
         assert!(
-            minted > 34_600_000.0 && minted < 34_700_000.0,
-            "Minted out of range: {}",
+            (34_600_000..34_700_000).contains(&(minted as u64)),
+            "Minted tokens out of expected range: {}",
             minted
         );
     }
 
     #[test]
-    fn test_buy_exact_output() {
-        let mut curve = SmoothBondingCurve {
-            a: 1_073_000_191.0,
-            k: 32_190_005_730.0,
-            c: 30.0,
-            x: 0.0,
-        };
-        let desired_out = 50_000_000.0;
-        let cost = curve.buy_exact_output(desired_out);
-        let mut fresh_curve = SmoothBondingCurve {
-            a: 1_073_000_191.0,
-            k: 32_190_005_730.0,
-            c: 30.0,
-            x: 0.0,
-        };
-        let minted_check = fresh_curve.buy_exact_input(cost);
-        assert!(
-            (minted_check - desired_out).abs() < 1.0,
-            "Difference too large: minted_check={}, expected={}",
-            minted_check,
-            desired_out
-        );
-    }
-
-    #[test]
     fn test_sell_exact_input() {
+        // Initialize the bonding curve with example parameters
         let mut curve = SmoothBondingCurve {
-            a: 1_073_000_191.0,
-            k: 32_190_005_730.0,
-            c: 30.0,
-            x: 0.0,
+            a: 1_073_000_191,
+            k: 32_190_005_730_000_000_000,
+            c: 30_000_000_000,
+            x: 0,
         };
-        let minted = curve.buy_exact_input(10.0);
-        let tokens_in = minted / 2.0;
-        let base_out = curve.sell_exact_input(tokens_in);
+
+        // First, buy tokens with 10 SOL
+        let sol_in = 10 * LAMPORTS_PER_SOL;
+        let minted_tokens = curve.buy_exact_input(sol_in);
+
+        // Then, sell half of the tokens
+        let tokens_to_sell = minted_tokens / 2;
+        let lamports_out = curve.sell_exact_input(tokens_to_sell);
+
+        // Ensure that selling tokens results in receiving some lamports
         assert!(
-            base_out > 0.0,
-            "Should receive a positive amount of base asset"
+            lamports_out > 0,
+            "Should receive some lamports when selling tokens"
         );
+
+        // Note: Selling should return less than 5 SOL due to the increased price
+        // after the initial purchase. A more precise test can be added if needed.
     }
 
-    #[test]
-    fn test_sell_exact_output() {
-        let mut curve = SmoothBondingCurve {
-            a: 1_073_000_191.0,
-            k: 32_190_005_730.0,
-            c: 30.0,
-            x: 0.0,
-        };
-        curve.buy_exact_input(100.0);
-        let desired_out = 10.0;
-        let tokens_in = curve.sell_exact_output(desired_out);
-        let mut fresh_curve = SmoothBondingCurve {
-            a: 1_073_000_191.0,
-            k: 32_190_005_730.0,
-            c: 30.0,
-            x: 0.0,
-        };
-        fresh_curve.buy_exact_input(100.0);
-        let base_got = fresh_curve.sell_exact_input(tokens_in);
-        assert!(
-            (base_got - desired_out).abs() < 1e-6,
-            "Difference too large: got={}, expected={}",
-            base_got,
-            desired_out
-        );
+    /// A local function to estimate the marginal price (dX/dY) in float,
+    /// used for logging and tracking price growth.
+    fn approximate_price(curve: &SmoothBondingCurve) -> f64 {
+        let denom = (curve.c as f64) + (curve.x as f64);
+        let k = curve.k as f64;
+        // price = (C + x)^2 / K
+        (denom * denom) / k
     }
 
-    /// This test demonstrates that the marginal price increases
-    /// after a user buys some tokens.
-    #[test]
-    fn test_price_increases_after_buy() {
-        let mut curve = SmoothBondingCurve {
-            a: 1_073_000_191.0,
-            k: 32_190_005_730.0,
-            c: 30.0,
-            x: 0.0,
-        };
-
-        let initial_price = curve._price();
-        curve.buy_exact_input(10.0);
-        let new_price = curve._price();
-
-        // We expect the new price to be higher, because x is larger.
-        assert!(
-            new_price > initial_price,
-            "Price should increase after buying. initial={}, new={}",
-            initial_price,
-            new_price
-        );
-    }
-
+    /// This test simulates continuous SOL purchases until the total pool liquidity reaches $70k.
     #[test]
     fn test_buy_until_70k_liquidity() {
+        // Initialize the bonding curve with example parameters
         let mut curve = SmoothBondingCurve {
-            a: 1_073_000_191.0,
-            k: 32_190_005_730.0,
-            c: 30.0,
-            x: 0.0,
+            a: 1_073_000_191,
+            k: 32_190_005_730 * LAMPORTS_PER_SOL as u128,
+            c: 30 * LAMPORTS_PER_SOL as u64,
+            x: 0,
         };
 
         let target_liquidity_usd = 70_000.0;
         let sol_price_usd = 250.0;
-        let base_in: f64 = 0.01;
-        let iters: u16 = 100;
-        // If 1 SOL costs $250, then for $70,000 we need 70,000/250 = 280 SOL in total.
+
+        // Calculate the target amount of SOL in the pool (280 SOL for $70k liquidity)
         let target_sol_in_pool = target_liquidity_usd / sol_price_usd;
 
+        // Each step buys 1 SOL
+        let base_in_per_step: u64 = LAMPORTS_PER_SOL / 1; // 1 SOL
+
+        // Limit the number of iterations
+        let max_iterations: u16 = 1000;
         let mut iteration = 0;
-        while curve.x < target_sol_in_pool {
+
+        // Continue buying until the total SOL in the pool reaches the target
+        while (curve.x as f64) / (LAMPORTS_PER_SOL as f64) < target_sol_in_pool {
             iteration += 1;
-            // Buy exactly 1 SOL worth of tokens each step
-            let minted = curve.buy_exact_input(base_in);
-            let new_price = curve._price();
-            let total_pool_sol = curve.x;
+
+            // Buy 1 SOL
+            let minted = curve.buy_exact_input(base_in_per_step);
+            let new_price = approximate_price(&curve);
+            let total_pool_sol = (curve.x as f64) / (LAMPORTS_PER_SOL as f64);
 
             println!(
-                "Iteration {iteration}: bought 0.01 SOL => minted {minted:.2} tokens, \
-                 new marginal price = {:.2e}, total SOL in pool = {:.2}",
+                "Iteration {iteration}: bought 1 SOL => minted {minted} tokens, \
+             approx price = {:.2e}, total SOL in pool = {:.4}",
                 new_price, total_pool_sol
             );
 
-            if iteration > iters {
+            if iteration > max_iterations {
                 panic!("Too many iterations, something might be wrong.");
             }
         }
 
-        let final_liquidity_sol = curve.x;
+        let final_liquidity_sol = (curve.x as f64) / (LAMPORTS_PER_SOL as f64);
         let final_liquidity_usd = final_liquidity_sol * sol_price_usd;
-        println!(
-            "Reached ~70k USD liquidity:\n  - Final SOL in pool: {:.2}\n  - Final USD value: ${:.2}\n",
-            final_liquidity_sol, final_liquidity_usd
-        );
 
+        println!(
+        "Reached ~70k USD liquidity:\n  - Final SOL in pool: {:.2}\n  - Final USD value: ${:.2}\n",
+        final_liquidity_sol, final_liquidity_usd
+    );
+
+        // Ensure the final USD liquidity is at least $70k
         assert!(
             final_liquidity_usd >= 70_000.0,
-            "Expected at least $70k in the pool, but got {}",
+            "Expected at least $70k in the pool, but got ${:.2}",
             final_liquidity_usd
         );
     }

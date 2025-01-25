@@ -1,5 +1,6 @@
 use anchor_lang::prelude::*;
-use anchor_lang::system_program::{self};
+use anchor_lang::{solana_program::native_token::LAMPORTS_PER_SOL, system_program};
+
 use anchor_spl::associated_token::AssociatedToken;
 use anchor_spl::metadata::mpl_token_metadata;
 use anchor_spl::metadata::mpl_token_metadata::{
@@ -8,8 +9,9 @@ use anchor_spl::metadata::mpl_token_metadata::{
 };
 use anchor_spl::token::{self, Burn, Mint, MintTo, Token, TokenAccount};
 
-// Local bonding curve module
 pub mod curves;
+pub mod errors;
+
 use curves::traits::BondingCurveTrait;
 use curves::SmoothBondingCurve;
 
@@ -20,6 +22,7 @@ pub mod bonding_curve {
     use super::*;
     use anchor_lang::solana_program::program::invoke_signed;
     use anchor_lang::system_program::Transfer;
+    use errors::CustomError;
 
     // ------------------------------------------------------------------------
     // (1) CREATE TOKEN
@@ -35,10 +38,10 @@ pub mod bonding_curve {
 
         // Initialize bonding curve
         owned_token.bonding_curve = SmoothBondingCurve {
-            a: 1_073_000_191.0,
-            k: 32_190_005_730.0,
-            c: 30.0,
-            x: 0.0,
+            a: 1_073_000_191,
+            k: 32_190_005_730 * LAMPORTS_PER_SOL as u128,
+            c: 30 * LAMPORTS_PER_SOL,
+            x: 0,
         };
 
         // No escrow or token minting logic here—just the creation of the main PDAs.
@@ -78,20 +81,24 @@ pub mod bonding_curve {
         system_program::transfer(cpi_ctx, deposit_lamports)?;
 
         // 2) Calculate the token amount via the bonding curve
-        let sol_deposit = (deposit_lamports as f64) / 1_000_000_000.0; // TODO: do we really need it?!
+        let sol_deposit = (deposit_lamports as u64) / LAMPORTS_PER_SOL;
 
-        let minted_tokens_f64 = ctx
+        let minted_tokens_u128 = ctx
             .accounts
             .owned_token
             .bonding_curve
             .buy_exact_input(sol_deposit);
-        let minted_tokens_u64 = minted_tokens_f64.round() as u64;
+
+        require!(
+            minted_tokens_u128 <= u64::MAX as u128,
+            CustomError::MathOverflow
+        );
 
         msg!(
-            "DEBUG: deposit_lamports={}, sol_deposit={}, minted_tokens_f64={}",
+            "DEBUG: deposit_lamports={}, sol_deposit={}, minted_tokens={}",
             deposit_lamports,
             sol_deposit,
-            minted_tokens_f64
+            minted_tokens_u128
         );
 
         // 3) Mint these tokens to the creator's ATA
@@ -115,15 +122,18 @@ pub mod bonding_curve {
                 },
                 &[signer_seeds],
             ),
-            minted_tokens_u64,
+            minted_tokens_u128 as u64,
         )?;
 
         // 4) Reduce the supply in OwnedToken (now using mutable borrow)
         let owned_token = &mut ctx.accounts.owned_token;
         owned_token.supply = owned_token
             .supply
-            .checked_sub(minted_tokens_u64)
+            .checked_sub(minted_tokens_u128 as u64)
             .ok_or(CustomError::MathOverflow)?;
+
+        msg!("minted_tokens = {}", minted_tokens_u128 as u64);
+        msg!("owned_token.supply = {}", owned_token.supply);
 
         Ok(())
     }
@@ -201,15 +211,15 @@ pub mod bonding_curve {
     // ------------------------------------------------------------------------
     pub fn buy_instruction(ctx: Context<BuyToken>, amount: u64) -> Result<()> {
         // 1) Calculate cost based on the bonding curve + check supply
-        let cost = {
+        let tokens_u128 = {
             let owned_token = &mut ctx.accounts.owned_token;
             require!(
                 amount <= owned_token.supply,
                 CustomError::InsufficientTokenSupply
             );
 
-            let cost_f64 = owned_token.bonding_curve.buy_exact_output(amount as f64);
-            cost_f64.round() as u64
+            let tokens_u128 = owned_token.bonding_curve.buy_exact_input(amount);
+            tokens_u128
         };
 
         // 2) Transfer lamports from buyer -> escrow
@@ -220,7 +230,7 @@ pub mod bonding_curve {
                 to: ctx.accounts.escrow_pda.to_account_info(),
             },
         );
-        system_program::transfer(cpi_ctx, cost)?;
+        system_program::transfer(cpi_ctx, amount)?;
 
         // 3) Mint tokens to the buyer
         let bump = ctx.bumps.owned_token;
@@ -233,6 +243,8 @@ pub mod bonding_curve {
             &[bump],
         ];
 
+        require!(tokens_u128 <= u64::MAX as u128, CustomError::MathOverflow);
+
         token::mint_to(
             CpiContext::new_with_signer(
                 ctx.accounts.token_program.to_account_info(),
@@ -243,14 +255,14 @@ pub mod bonding_curve {
                 },
                 &[signer_seeds],
             ),
-            amount,
+            tokens_u128 as u64,
         )?;
 
         // 4) Update the supply
         let owned_token = &mut ctx.accounts.owned_token;
         owned_token.supply = owned_token
             .supply
-            .checked_sub(amount)
+            .checked_sub(tokens_u128 as u64)
             .ok_or(CustomError::MathOverflow)?;
 
         Ok(())
@@ -259,7 +271,7 @@ pub mod bonding_curve {
     // ------------------------------------------------------------------------
     // SELL TOKENS
     // ------------------------------------------------------------------------
-    pub fn sell_instruction(ctx: Context<SellToken>, amount: u64) -> Result<()> {
+    pub fn sell_instruction(ctx: Context<SellToken>, token_amount_u128: u128) -> Result<()> {
         // 1) Burn user's tokens
         let cpi_ctx = CpiContext::new(
             ctx.accounts.token_program.to_account_info(),
@@ -269,12 +281,20 @@ pub mod bonding_curve {
                 authority: ctx.accounts.user.to_account_info(),
             },
         );
-        token::burn(cpi_ctx, amount)?;
+
+        require!(
+            token_amount_u128 <= u64::MAX as u128,
+            CustomError::MathOverflow
+        );
+        let token_amount_64 = token_amount_u128 as u64;
+
+        token::burn(cpi_ctx, token_amount_64)?;
 
         // 2) Calculate how much SOL to return
         let owned_token = &mut ctx.accounts.owned_token;
-        let base_return_f64 = owned_token.bonding_curve.sell_exact_input(amount as f64);
-        let base_return = base_return_f64.round() as u64;
+        let base_return_u64 = owned_token
+            .bonding_curve
+            .sell_exact_input(token_amount_u128);
 
         // 3) Transfer SOL from escrow -> user
         let bump = owned_token.escrow_bump;
@@ -291,7 +311,7 @@ pub mod bonding_curve {
         let transfer_ix = anchor_lang::solana_program::system_instruction::transfer(
             &ctx.accounts.escrow_pda.key(),
             &ctx.accounts.user.key(),
-            base_return,
+            base_return_u64,
         );
         invoke_signed(
             &transfer_ix,
@@ -306,7 +326,7 @@ pub mod bonding_curve {
         // 4) Increase supply
         owned_token.supply = owned_token
             .supply
-            .checked_add(amount)
+            .checked_add(token_amount_64)
             .ok_or(CustomError::MathOverflow)?;
 
         Ok(())
@@ -607,21 +627,4 @@ pub struct SellToken<'info> {
     #[account(address = system_program::ID)]
     /// CHECK: System Program
     pub system_program: UncheckedAccount<'info>,
-}
-
-// ------------------------------------------------------------------------
-// Errors
-// ------------------------------------------------------------------------
-#[error_code]
-pub enum CustomError {
-    #[msg("Token supply is not enough to fulfill buy request.")]
-    InsufficientTokenSupply,
-    #[msg("Math overflow or underflow.")]
-    MathOverflow,
-}
-
-#[error_code]
-pub enum ErrorCode {
-    #[msg("Missing bump seed in bumps map.")]
-    MissingBump,
 }
