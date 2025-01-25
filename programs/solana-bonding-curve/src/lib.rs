@@ -15,7 +15,7 @@ pub mod errors;
 use curves::traits::BondingCurveTrait;
 use curves::SmoothBondingCurve;
 
-declare_id!("Hcr3N3zXbfZ7vc43mkG9ftHuB55rPo2piT81tXcUcCEN");
+declare_id!("2WrNKsyFB4RfwJzPQUyCNLHibmqJaZ4Jv5MHXFtabNtt");
 
 #[program]
 pub mod bonding_curve {
@@ -44,7 +44,6 @@ pub mod bonding_curve {
             x: 0,
         };
 
-        // No escrow or token minting logic here—just the creation of the main PDAs.
         Ok(())
     }
 
@@ -70,7 +69,22 @@ pub mod bonding_curve {
         ctx: Context<MintInitialTokens>,
         deposit_lamports: u64,
     ) -> Result<()> {
+        // --------------------------------------------------------------------
         // 1) Transfer lamports from `creator` to Escrow PDA
+        // --------------------------------------------------------------------
+        msg!(
+            "DEBUG: Starting mint_initial_tokens_instruction. deposit_lamports={}",
+            deposit_lamports
+        );
+        msg!(
+            "DEBUG: Escrow PDA balance BEFORE transfer: {} lamports",
+            ctx.accounts.escrow_pda.to_account_info().lamports()
+        );
+        msg!(
+            "DEBUG: Creator balance BEFORE transfer: {} lamports",
+            ctx.accounts.creator.to_account_info().lamports()
+        );
+
         let cpi_ctx = CpiContext::new(
             ctx.accounts.system_program.to_account_info(),
             Transfer {
@@ -80,31 +94,52 @@ pub mod bonding_curve {
         );
         system_program::transfer(cpi_ctx, deposit_lamports)?;
 
-        // 2) Calculate the token amount via the bonding curve
-        let sol_deposit = (deposit_lamports as u64) / LAMPORTS_PER_SOL;
+        msg!(
+            "DEBUG: Transfer SUCCESS. Escrow PDA balance AFTER transfer: {} lamports",
+            ctx.accounts.escrow_pda.to_account_info().lamports()
+        );
+        msg!(
+            "DEBUG: Creator balance AFTER transfer: {} lamports",
+            ctx.accounts.creator.to_account_info().lamports()
+        );
 
+        // --------------------------------------------------------------------
+        // 2) Calculate the token amount via the bonding curve
+        // --------------------------------------------------------------------
+        msg!("DEBUG: Calling buy_exact_input() in the bonding curve...");
         let minted_tokens_u128 = ctx
             .accounts
             .owned_token
             .bonding_curve
-            .buy_exact_input(sol_deposit);
+            .buy_exact_input(deposit_lamports);
+
+        msg!(
+            "DEBUG: buy_exact_input returned minted_tokens_u128={}",
+            minted_tokens_u128
+        );
 
         require!(
             minted_tokens_u128 <= u64::MAX as u128,
             CustomError::MathOverflow
         );
 
+        let minted_tokens_u64 = minted_tokens_u128 as u64;
         msg!(
-            "DEBUG: deposit_lamports={}, sol_deposit={}, minted_tokens={}",
-            deposit_lamports,
-            sol_deposit,
-            minted_tokens_u128
+            "DEBUG: minted_tokens_u64={} (will pass this to token::mint_to)",
+            minted_tokens_u64
         );
 
+        // --------------------------------------------------------------------
         // 3) Mint these tokens to the creator's ATA
+        // --------------------------------------------------------------------
         let bump = ctx.bumps.owned_token;
         let creator_key = ctx.accounts.creator.key();
         let token_seed_key = ctx.accounts.token_seed.key();
+
+        msg!("DEBUG: Bump = {}", bump);
+        msg!("DEBUG: Creator Pubkey = {}", creator_key);
+        msg!("DEBUG: Token Seed Pubkey = {}", token_seed_key);
+
         let signer_seeds = &[
             b"owned_token".as_ref(),
             creator_key.as_ref(),
@@ -112,6 +147,7 @@ pub mod bonding_curve {
             &[bump],
         ];
 
+        msg!("DEBUG: About to call token::mint_to()...");
         token::mint_to(
             CpiContext::new_with_signer(
                 ctx.accounts.token_program.to_account_info(),
@@ -122,19 +158,24 @@ pub mod bonding_curve {
                 },
                 &[signer_seeds],
             ),
-            minted_tokens_u128 as u64,
+            minted_tokens_u64,
         )?;
+        msg!("DEBUG: mint_to SUCCESS!");
 
-        // 4) Reduce the supply in OwnedToken (now using mutable borrow)
+        // --------------------------------------------------------------------
+        // 4) (Commented Out) Reduce supply - just logs to confirm not used
+        // --------------------------------------------------------------------
+        /* TODO: recover this logic!
         let owned_token = &mut ctx.accounts.owned_token;
+        msg!("DEBUG: owned_token.supply BEFORE sub={}", owned_token.supply);
         owned_token.supply = owned_token
             .supply
-            .checked_sub(minted_tokens_u128 as u64)
+            .checked_sub(minted_tokens_u64)
             .ok_or(CustomError::MathOverflow)?;
+        msg!("DEBUG: owned_token.supply AFTER sub={}", owned_token.supply);
+        */
 
-        msg!("minted_tokens = {}", minted_tokens_u128 as u64);
-        msg!("owned_token.supply = {}", owned_token.supply);
-
+        msg!("DEBUG: Instruction complete. Returning Ok(()).");
         Ok(())
     }
 
@@ -346,14 +387,9 @@ pub struct OwnedToken {
     pub escrow_bump: u8,
 }
 impl OwnedToken {
-    // 8 (discriminator)
-    // + 8 (supply)
-    // + 4 * 8 (4x f64 in bonding_curve)
-    // + 32 (escrow_pda pubkey)
-    // + 1 (escrow_bump)
-    pub const LEN: usize = 8 + 8 + (8 * 4) + 32 + 1;
+    // 8 discriminator + 8 supply + 40 bonding_curve + 32 escrow + 1 bump = 89
+    pub const LEN: usize = 89;
 }
-
 // ------------------------------------------------------------------------
 // (1) CreateToken (no escrow logic here)
 // ------------------------------------------------------------------------

@@ -41,12 +41,12 @@ const program = anchor.workspace.BondingCurve as Program<BondingCurve>;
 const creator = devnetKeypair;
 
 // We’ll deposit 0.001 SOL initially (100_000 lamports)
-const initialDepositLamports = new BN(100_000);
+const initialDepositLamports = new BN(0.001 * LAMPORTS_PER_SOL);
 
 // Some metadata for setMetadataInstruction
-const tokenName = "Hello World";
-const tokenSymbol = "HWD";
-const tokenUri = "https://example.com/fake.json";
+const tokenName = "Hello World 1";
+const tokenSymbol = "HWD1";
+const tokenUri = "https://ekza.io/ipfs/QmVjBTRsbAM96BnNtZKrR8i3hGRbkjnQ3kugwXn6BVFu2k";
 
 describe("Bonding Curve (Lamports) Test", () => {
   it("Create, Init Escrow, Mint, Buy, Sell using lamports", async () => {
@@ -108,7 +108,7 @@ describe("Bonding Curve (Lamports) Test", () => {
         creatorTokenAccount,
         associatedTokenProgram: ASSOCIATED_TOKEN_PROGRAM_ID,
         tokenProgram: TOKEN_PROGRAM_ID,
-        escrowPda, // not used in create, but anchor needs it in accounts
+        escrowPda,
         systemProgram: SystemProgram.programId,
       })
       .signers([mintKeypair])
@@ -164,14 +164,31 @@ describe("Bonding Curve (Lamports) Test", () => {
       .instruction();
 
     // Execute these 4 instructions in one transaction
-    const tx1 = new Transaction()
-      .add(ixCreate)
-      .add(ixInitEscrow)
-      .add(ixMintInitial)
-      .add(ixSetMetadata);
+    try {
+      console.log("Sending transaction for: Create + InitEscrow + MintInitial + Metadata...");
 
-    const tx1Sig = await provider.sendAndConfirm(tx1, [creator, mintKeypair]);
-    console.log("Create + InitEscrow + MintInitial + Metadata TX Sig:", tx1Sig);
+      // Build the transaction
+      const tx1 = new Transaction()
+        .add(ixCreate)
+        .add(ixInitEscrow)
+        .add(ixMintInitial)
+        .add(ixSetMetadata);
+
+      // Send & confirm
+      const tx1Sig = await provider.sendAndConfirm(tx1, [creator, mintKeypair]);
+
+      console.log("Success! TX Sig:", tx1Sig);
+    } catch (err: any) {
+      console.error("Error sending transaction:", err);
+
+      // If the error object includes logs, print them
+      if ("logs" in err) {
+        console.log("Transaction logs:", err.logs);
+      }
+
+      // Re-throw if you want the test to fail
+      throw err;
+    }
 
     // Check OwnedToken & Creator’s ATA
     let creatorAtaInfo = await getAccount(connection, creatorTokenAccount);

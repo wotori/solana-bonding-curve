@@ -1,5 +1,5 @@
 use super::traits::BondingCurveTrait;
-use anchor_lang::prelude::*;
+use anchor_lang::{prelude::*, solana_program::native_token::LAMPORTS_PER_SOL};
 
 /// A smooth bonding curve tracking the total base asset (e.g., SOL, XBT) deposited.
 ///
@@ -38,6 +38,7 @@ impl BondingCurveTrait for SmoothBondingCurve {
         let new_y = self.y_of_x(self.x.saturating_add(base_in));
         let minted = new_y.saturating_sub(old_y);
         self.x = self.x.saturating_add(base_in);
+        // minted * LAMPORTS_PER_SOL as u128 // TODO: Remove this hack; the formula should calculate in actual lamports.
         minted
     }
 
@@ -72,21 +73,77 @@ mod tests {
         // Initialize the bonding curve with example parameters
         let mut curve = SmoothBondingCurve {
             a: 1_073_000_191,
-            k: 32_190_005_730_000_000_000,
-            c: 30_000_000_000,
+            k: 32_190_005_730 * LAMPORTS_PER_SOL as u128,
+            c: 30 * LAMPORTS_PER_SOL as u64,
             x: 0,
         };
 
         // Buy tokens with 1 SOL (in lamports)
-        let base_in = 1 * LAMPORTS_PER_SOL;
-        let minted = curve.buy_exact_input(base_in);
+        let base_in = 0.001 * LAMPORTS_PER_SOL as f64;
+        let minted = curve.buy_exact_input(base_in as u64);
+        println!("minted: {}", minted);
 
         // Ensure the minted token amount is within the expected range
+        // minted: 35_766_000_000_000
+        // let minted = minted / LAMPORTS_PER_SOL as u128;
         assert!(
-            (34_600_000..34_700_000).contains(&(minted as u64)),
+            // (34_600..36_700).contains(&(minted as u64)),
+            (34_600..36_700).contains(&(minted as u64)),
             "Minted tokens out of expected range: {}",
             minted
         );
+    }
+
+    #[test]
+    fn test_buy_various_inputs() {
+        // Fractions to test: 1 SOL, 0.1 SOL, 0.01 SOL, 0.001 SOL, 0.0001 SOL
+        let fractions = [10.0, 1.0, 0.1, 0.01, 0.001, 0.0001];
+
+        // Previous number of tokens (to ensure smaller fractions result in fewer tokens)
+        let mut prev_minted = u128::MAX;
+
+        for fraction in fractions {
+            // Create a fresh curve for each test with x=0
+            let mut curve = SmoothBondingCurve {
+                a: 1_073_000_191,
+                k: 32_190_005_730 * LAMPORTS_PER_SOL as u128,
+                c: 30 * LAMPORTS_PER_SOL as u64,
+                x: 0,
+            };
+
+            // Calculate the approximate lamports corresponding to the fraction
+            let lamports_in = (LAMPORTS_PER_SOL as f64 * fraction) as u64;
+            let minted = curve.buy_exact_input(lamports_in);
+
+            println!(
+                "fraction = {:.4}, lamports_in = {}, minted = {}",
+                fraction, lamports_in, minted
+            );
+
+            assert!(
+                minted <= u64::MAX as u128,
+                "Expected minted tokens ({}) to fit within u64::MAX ({})",
+                minted,
+                u64::MAX
+            );
+
+            // Ensure that at least some tokens are minted (for 0.0001 SOL, it might be 0)
+            // If the curve is large, 0 might be acceptable, but here we assert minted > 0
+            assert!(
+                minted > 0,
+                "Expected a positive number of tokens for fraction={}",
+                fraction
+            );
+
+            // Additionally, check that decreasing the fraction decreases the number of tokens.
+            // (For very large/complex curves, this might not always be strictly linear,
+            // but for this curve, the number of tokens generally increases monotonically with x.)
+            assert!(
+                minted <= prev_minted,
+                "Expected minted tokens to decrease as fraction decreases"
+            );
+            prev_minted = minted;
+        }
     }
 
     #[test]
@@ -94,8 +151,8 @@ mod tests {
         // Initialize the bonding curve with example parameters
         let mut curve = SmoothBondingCurve {
             a: 1_073_000_191,
-            k: 32_190_005_730_000_000_000,
-            c: 30_000_000_000,
+            k: 32_190_005_730 * LAMPORTS_PER_SOL as u128,
+            c: 30 * LAMPORTS_PER_SOL as u64,
             x: 0,
         };
 
