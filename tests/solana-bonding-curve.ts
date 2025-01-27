@@ -12,7 +12,7 @@ import {
   ASSOCIATED_TOKEN_PROGRAM_ID,
   TOKEN_PROGRAM_ID,
   getAccount,
-  getAssociatedTokenAddress,
+  getAssociatedTokenAddress
 } from "@solana/spl-token";
 import fs from "fs";
 import path from "path";
@@ -23,25 +23,18 @@ const METAPLEX_PROGRAM_ID = new PublicKey(
   "metaqbxxUerdq28cj1RbAWkYQm3ybzjb6a8bt518x1s"
 );
 
-// Load a devnet keypair for `creator`
+// 1) Setup anchor provider
+const connection = new anchor.web3.Connection("https://api.devnet.solana.com");
 const keypath = path.join(process.env.HOME!, ".config", "solana", "devnet-owner.json");
 const secretKeyArray = JSON.parse(fs.readFileSync(keypath, "utf-8"));
 const devnetKeypair = Keypair.fromSecretKey(new Uint8Array(secretKeyArray));
-
-// Setup Anchor provider
-const connection = new anchor.web3.Connection("https://api.devnet.solana.com");
 const wallet = new anchor.Wallet(devnetKeypair);
 const provider = new anchor.AnchorProvider(connection, wallet, {});
 anchor.setProvider(provider);
 
-// The Anchor program
+// 2) The anchor program
 const program = anchor.workspace.BondingCurve as Program<BondingCurve>;
-
-// The same `creator` used in on-chain seeds
 const creator = devnetKeypair;
-
-// We’ll deposit 0.001 SOL initially (100_000 lamports)
-const initialDepositLamports = new BN(0.001 * LAMPORTS_PER_SOL);
 
 // Some metadata for setMetadataInstruction
 const now = new Date();
@@ -55,42 +48,58 @@ const tokenName = `${year}_${month}_${day}_${hours}_${minutes}`;
 const tokenSymbol = "HWD";
 const tokenUri = "https://ekza.io/ipfs/QmVjBTRsbAM96BnNtZKrR8i3hGRbkjnQ3kugwXn6BVFu2k";
 
-describe("Bonding Curve (Lamports) Test", () => {
-  it("Create, Init Escrow, Mint, Buy, Sell using lamports", async () => {
+// We'll deposit 0.001 SOL initially
+const initialDepositLamports = new BN(0.001 * LAMPORTS_PER_SOL);
+
+describe("Bonding Curve (Lamports) Test (multi-step with all asserts)", () => {
+  // Shared variables across steps
+  let tokenSeedKeypair: Keypair;
+  let mintKeypair: Keypair;
+
+  let ownedTokenPda: PublicKey;
+  let escrowPda: PublicKey;
+  let metadataPda: PublicKey;
+  let creatorTokenAccount: PublicKey;
+
+  // We'll store supply & ATA data between steps
+  let ownedTokenDataBefore: any;
+  let buyerKeypair: Keypair;
+  let buyerTokenAccount: PublicKey;
+
+  it("Step 1) Create, Init Escrow, MintInitial, SetMetadata", async () => {
     //
     // 0) Generate keypairs + PDAs
     //
-    const tokenSeedKeypair = Keypair.generate(); // arbitrary seed for PDAs
-    const mintKeypair = Keypair.generate();      // new mint
+    tokenSeedKeypair = Keypair.generate();
+    mintKeypair = Keypair.generate();
 
-    // PDAs: OwnedToken, Escrow, and Metadata
-    const [ownedTokenPda] = PublicKey.findProgramAddressSync(
+    [ownedTokenPda] = PublicKey.findProgramAddressSync(
       [
         Buffer.from("owned_token"),
         creator.publicKey.toBuffer(),
-        tokenSeedKeypair.publicKey.toBuffer(),
+        tokenSeedKeypair.publicKey.toBuffer()
       ],
       program.programId
     );
-    const [escrowPda] = PublicKey.findProgramAddressSync(
+    [escrowPda] = PublicKey.findProgramAddressSync(
       [
         Buffer.from("escrow"),
         creator.publicKey.toBuffer(),
-        tokenSeedKeypair.publicKey.toBuffer(),
+        tokenSeedKeypair.publicKey.toBuffer()
       ],
       program.programId
     );
-    const [metadataPda] = PublicKey.findProgramAddressSync(
+    [metadataPda] = PublicKey.findProgramAddressSync(
       [
         Buffer.from("metadata"),
         METAPLEX_PROGRAM_ID.toBuffer(),
-        mintKeypair.publicKey.toBuffer(),
+        mintKeypair.publicKey.toBuffer()
       ],
       METAPLEX_PROGRAM_ID
     );
 
     // Creator’s ATA
-    const creatorTokenAccount = await getAssociatedTokenAddress(
+    creatorTokenAccount = await getAssociatedTokenAddress(
       mintKeypair.publicKey,
       creator.publicKey
     );
@@ -103,7 +112,7 @@ describe("Bonding Curve (Lamports) Test", () => {
     console.log("Metadata PDA:", metadataPda.toBase58());
 
     //
-    // 1) CREATE TOKEN INSTRUCTION
+    // 1) CREATE
     //
     const ixCreate = await program.methods
       .createTokenInstruction()
@@ -116,7 +125,7 @@ describe("Bonding Curve (Lamports) Test", () => {
         associatedTokenProgram: ASSOCIATED_TOKEN_PROGRAM_ID,
         tokenProgram: TOKEN_PROGRAM_ID,
         escrowPda,
-        systemProgram: SystemProgram.programId,
+        systemProgram: SystemProgram.programId
       })
       .signers([mintKeypair])
       .instruction();
@@ -131,12 +140,12 @@ describe("Bonding Curve (Lamports) Test", () => {
         creator: creator.publicKey,
         ownedToken: ownedTokenPda,
         escrowPda,
-        systemProgram: SystemProgram.programId,
+        systemProgram: SystemProgram.programId
       })
       .instruction();
 
     //
-    // 3) MINT INITIAL TOKENS
+    // 3) MINT INITIAL
     //
     const ixMintInitial = await program.methods
       .mintInitialTokensInstruction(initialDepositLamports)
@@ -148,7 +157,7 @@ describe("Bonding Curve (Lamports) Test", () => {
         mint: mintKeypair.publicKey,
         creatorTokenAccount,
         tokenProgram: TOKEN_PROGRAM_ID,
-        systemProgram: SystemProgram.programId,
+        systemProgram: SystemProgram.programId
       })
       .instruction();
 
@@ -166,89 +175,72 @@ describe("Bonding Curve (Lamports) Test", () => {
         tokenMetadataProgram: METAPLEX_PROGRAM_ID,
         tokenProgram: TOKEN_PROGRAM_ID,
         sysvarInstructions: anchor.web3.SYSVAR_INSTRUCTIONS_PUBKEY,
-        systemProgram: SystemProgram.programId,
+        systemProgram: SystemProgram.programId
       })
       .instruction();
 
-    // Execute these 4 instructions in one transaction
     try {
-      console.log("Sending transaction for: Create + InitEscrow + MintInitial + Metadata...");
-
-      // Build the transaction
+      console.log("Sending transaction for: Create + Init + MintInitial + Metadata...");
       const tx1 = new Transaction()
         .add(ixCreate)
         .add(ixInitEscrow)
         .add(ixMintInitial)
         .add(ixSetMetadata);
 
-      // Send & confirm
       const tx1Sig = await provider.sendAndConfirm(tx1, [creator, mintKeypair]);
-
       console.log("Success! TX Sig:", tx1Sig);
     } catch (err: any) {
       console.error("Error sending transaction:", err);
-
-      // If the error object includes logs, print them
-      if ("logs" in err) {
-        console.log("Transaction logs:", err.logs);
-      }
-
-      // Re-throw if you want the test to fail
+      if ("logs" in err) console.log("Transaction logs:", err.logs);
       throw err;
     }
 
     // Check OwnedToken & Creator’s ATA
-    let creatorAtaInfo = await getAccount(connection, creatorTokenAccount);
-    let ownedTokenData = await program.account.ownedToken.fetch(ownedTokenPda);
+    const creatorAtaInfo = await getAccount(connection, creatorTokenAccount);
+    ownedTokenDataBefore = await program.account.ownedToken.fetch(ownedTokenPda);
 
     console.log("Creator ATA after initial mint:", creatorAtaInfo.amount.toString());
-    console.log("OwnedToken.supply after initial mint:", ownedTokenData.supply.toString());
+    console.log("OwnedToken.supply after initial mint:", ownedTokenDataBefore.supply.toString());
 
     // If deposit_lamports < 1 SOL, watch out for integer division => might be 0 tokens
     assert(
       creatorAtaInfo.amount >= BigInt(0),
-      "Creator ATA should have minted at least 0 tokens (check for integer division if see 0)."
+      "Creator ATA should have minted at least 0 tokens (check integer division)."
     );
+  });
 
-    //
-    // 5) BUY: Another user deposits 0.001 SOL => receives some tokens
-    //
-    // Load a “buyer” from a local keypair (just an example)
-    const buyerKeypath = path.join(
-      process.env.HOME!,
-      ".config",
-      "solana",
-      "devnet-buyer.json"
-    );
-    const buyerKeypair = Keypair.fromSecretKey(
-      new Uint8Array(JSON.parse(fs.readFileSync(buyerKeypath, "utf-8")))
-    );
+  it("Step 2) Buyer deposits 0.001 SOL => receives tokens", async () => {
+    // Load buyer from local keypair
+    const buyerKeypath = path.join(process.env.HOME!, ".config", "solana", "devnet-buyer.json");
+    const buyerSecretArr = JSON.parse(fs.readFileSync(buyerKeypath, "utf-8"));
+    buyerKeypair = Keypair.fromSecretKey(new Uint8Array(buyerSecretArr));
 
     // Buyer’s ATA
-    const buyerTokenAccount = await getAssociatedTokenAddress(
+    buyerTokenAccount = await getAssociatedTokenAddress(
       mintKeypair.publicKey,
       buyerKeypair.publicKey
     );
 
-    // We'll deposit 0.001 SOL from the buyer
+    // We'll deposit 0.001 SOL
     const buyLamports = new BN(0.001 * LAMPORTS_PER_SOL);
     const buyerAtaInfoBefore = await getAccount(connection, buyerTokenAccount).catch(() => null);
     const buyerTokensBefore = buyerAtaInfoBefore ? buyerAtaInfoBefore.amount : BigInt("0");
-    const supplyBeforeBuy = ownedTokenData.supply;
+    const supplyBeforeBuy = ownedTokenDataBefore.supply;
 
+    // Build buy instruction
     const ixBuy = await program.methods
       .buyInstruction(buyLamports)
       .accounts({
         tokenSeed: tokenSeedKeypair.publicKey,
         buyer: buyerKeypair.publicKey,
-        creator: creator.publicKey, // just needed for PDA seeds
+        creator: creator.publicKey,
         ownedToken: ownedTokenPda,
         escrowPda,
         mint: mintKeypair.publicKey,
         buyerTokenAccount,
         associatedTokenProgram: ASSOCIATED_TOKEN_PROGRAM_ID,
         tokenProgram: TOKEN_PROGRAM_ID,
-        systemProgram: SystemProgram.programId,
+        systemProgram: SystemProgram.programId
       })
       .signers([buyerKeypair])
       .instruction();
@@ -257,7 +249,7 @@ describe("Bonding Curve (Lamports) Test", () => {
       new Transaction().add(ixBuy),
       [buyerKeypair]
     );
-    console.log("Buyer purchased 0.01 SOL worth of tokens. TX Sig:", txBuySig);
+    console.log("Buyer purchased 0.001 SOL worth of tokens. TX Sig:", txBuySig);
 
     // Check new balances
     const buyerAtaInfoAfterBuy = await getAccount(connection, buyerTokenAccount);
@@ -278,18 +270,24 @@ describe("Bonding Curve (Lamports) Test", () => {
       "Supply should decrease exactly by minted amount"
     );
 
-    //
-    // 6) SELL: Buyer wants to withdraw some lamports (e.g. 0.005 SOL),
-    //    or we might do EXACT burn of tokens => get some lamports.
-    //
+    // Update for next step
+    ownedTokenDataBefore = ownedTokenDataAfterBuy;
+  });
+
+  it("Step 3) Buyer sells half of their tokens", async () => {
+    // Re-check buyer’s ATA
+    const buyerAtaInfoAfterBuy = await getAccount(connection, buyerTokenAccount);
     const tokensBuyerHas = buyerAtaInfoAfterBuy.amount;
+
+    console.log("Buyer has:", tokensBuyerHas.toString());
     const tokensToSell = tokensBuyerHas / BigInt("2");
     const tokensInCurveScaleDown = tokensToSell / BigInt(10 ** 9);
 
-    console.log("Selling half of the buyer’s tokens:", tokensInCurveScaleDown.toString());
-    const supplyBeforeSell = ownedTokenDataAfterBuy.supply;
+    console.log("Selling half of buyer’s tokens:", tokensInCurveScaleDown.toString());
 
+    const supplyBeforeSell = ownedTokenDataBefore.supply;
 
+    // Sell
     const ixSell = await program.methods
       .sellInstruction(new BN(tokensInCurveScaleDown.toString()))
       .accounts({
@@ -301,7 +299,7 @@ describe("Bonding Curve (Lamports) Test", () => {
         mint: mintKeypair.publicKey,
         userTokenAccount: buyerTokenAccount,
         tokenProgram: TOKEN_PROGRAM_ID,
-        systemProgram: SystemProgram.programId,
+        systemProgram: SystemProgram.programId
       })
       .signers([buyerKeypair])
       .instruction();
@@ -310,14 +308,18 @@ describe("Bonding Curve (Lamports) Test", () => {
       new Transaction().add(ixSell),
       [buyerKeypair]
     );
-    console.log("Sell transaction (burn half of buyer’s tokens). TX Sig:", txSellSig);
+    console.log("Sell transaction Sig:", txSellSig);
 
-    // Check final balances
+    // Check final
     const buyerAtaInfoAfterSell = await getAccount(connection, buyerTokenAccount);
     const ownedTokenDataAfterSell = await program.account.ownedToken.fetch(ownedTokenPda);
 
     const tokensBurned = tokensBuyerHas - buyerAtaInfoAfterSell.amount;
     const deltaSupplyAfterSell = ownedTokenDataAfterSell.supply.sub(supplyBeforeSell);
+
+    const buyerTokenAccOnChain = await getAccount(connection, buyerTokenAccount);
+    console.log("ATA owner is:", buyerTokenAccOnChain.owner.toBase58());
+    console.log("User is:", buyerKeypair.publicKey.toBase58());
 
     console.log("Buyer ATA after sell:", buyerAtaInfoAfterSell.amount.toString());
     console.log("Tokens actually burned:", tokensBurned.toString());
@@ -336,7 +338,6 @@ describe("Bonding Curve (Lamports) Test", () => {
       deltaSupplyInBase.eq(new BN(tokensBurned.toString())),
       "Supply should increase by exactly the burned amount (in base units)"
     );
-
 
     console.log("==== TEST PASSED ====");
   });
