@@ -17,11 +17,18 @@ This formula represents the cumulative minted tokens (y) as a function of the ba
 
 For visualization, a script is available in the `qa` folder that generates the curve. 
 
-### Example Visualization
-
-Below is an example of the bonding curve:
+### Bonding Curve Visualization
 
 <img src="bonding_curve.png" alt="Solana Bonding Curve" width="400" height="300">
+
+This visualization demonstrates how the bonding curve evolves as more base assets are contributed (`x`) and tokens are minted (`y(x)`), along with the marginal price (`price(x)`).
+
+#### TODO:
+- [ ] **Integrate Rust logic into Python using FFI (Foreign Function Interface):**
+    - Compile the Rust code into a shared library (`.so`/`.dll`/`.dylib`) and load it directly into Python for calculations and visualizations.
+    - Use a library like [`pyo3`](https://github.com/PyO3/pyo3) or [`rust-cpython`](https://github.com/dgrunwald/rust-cpython) to bind Rust functions to Python.
+    - Replace the Python-only implementation (`y_of_x`, `price_of_x`) with calls to the compiled Rust implementation of `SmoothBondingCurve`.
+
 
 ## Bonding Curve Test Overview
 
