@@ -44,8 +44,15 @@ const creator = devnetKeypair;
 const initialDepositLamports = new BN(0.001 * LAMPORTS_PER_SOL);
 
 // Some metadata for setMetadataInstruction
-const tokenName = "Hello World 1";
-const tokenSymbol = "HWD1";
+const now = new Date();
+const year = now.getFullYear().toString().slice(2);
+const month = String(now.getMonth() + 1).padStart(2, '0');
+const day = String(now.getDate()).padStart(2, '0');
+const hours = String(now.getHours()).padStart(2, '0');
+const minutes = String(now.getMinutes()).padStart(2, '0');
+
+const tokenName = `${year}_${month}_${day}_${hours}_${minutes}`;
+const tokenSymbol = "HWD";
 const tokenUri = "https://ekza.io/ipfs/QmVjBTRsbAM96BnNtZKrR8i3hGRbkjnQ3kugwXn6BVFu2k";
 
 describe("Bonding Curve (Lamports) Test", () => {
@@ -129,10 +136,10 @@ describe("Bonding Curve (Lamports) Test", () => {
       .instruction();
 
     //
-    // 3) MINT INITIAL TOKENS (deposit_lamports = 100,000 => 0.001 SOL)
+    // 3) MINT INITIAL TOKENS
     //
     const ixMintInitial = await program.methods
-      .mintInitialTokensInstruction(initialDepositLamports) // 100,000 lamports
+      .mintInitialTokensInstruction(initialDepositLamports)
       .accounts({
         tokenSeed: tokenSeedKeypair.publicKey,
         creator: creator.publicKey,
@@ -204,7 +211,7 @@ describe("Bonding Curve (Lamports) Test", () => {
     );
 
     //
-    // 5) BUY: Another user deposits 0.01 SOL => receives some tokens
+    // 5) BUY: Another user deposits 0.001 SOL => receives some tokens
     //
     // Load a “buyer” from a local keypair (just an example)
     const buyerKeypath = path.join(
@@ -223,8 +230,8 @@ describe("Bonding Curve (Lamports) Test", () => {
       buyerKeypair.publicKey
     );
 
-    // We'll deposit 0.01 SOL from the buyer
-    const buyLamports = new BN(0.01 * LAMPORTS_PER_SOL); // 0.01 SOL in lamports
+    // We'll deposit 0.001 SOL from the buyer
+    const buyLamports = new BN(0.001 * LAMPORTS_PER_SOL);
     const buyerAtaInfoBefore = await getAccount(connection, buyerTokenAccount).catch(() => null);
     const buyerTokensBefore = buyerAtaInfoBefore ? buyerAtaInfoBefore.amount : BigInt("0");
     const supplyBeforeBuy = ownedTokenData.supply;
@@ -258,6 +265,7 @@ describe("Bonding Curve (Lamports) Test", () => {
 
     const deltaBuyer = buyerAtaInfoAfterBuy.amount - buyerTokensBefore;
     const deltaSupply = supplyBeforeBuy.sub(ownedTokenDataAfterBuy.supply);
+    const scaledDeltaSupply = deltaSupply.mul(new BN(10 ** 9));
 
     console.log("Buyer ATA after buy:", buyerAtaInfoAfterBuy.amount.toString());
     console.log("OwnedToken supply after buy:", ownedTokenDataAfterBuy.supply.toString());
@@ -266,7 +274,7 @@ describe("Bonding Curve (Lamports) Test", () => {
 
     assert(deltaBuyer > BigInt("0"), "Buyer should receive some positive token amount");
     assert(
-      deltaSupply.eq(new BN(deltaBuyer.toString())),
+      scaledDeltaSupply.eq(new BN(deltaBuyer.toString())),
       "Supply should decrease exactly by minted amount"
     );
 
@@ -276,12 +284,14 @@ describe("Bonding Curve (Lamports) Test", () => {
     //
     const tokensBuyerHas = buyerAtaInfoAfterBuy.amount;
     const tokensToSell = tokensBuyerHas / BigInt("2");
+    const tokensInCurveScaleDown = tokensToSell / BigInt(10 ** 9);
 
-    console.log("Selling half of the buyer’s tokens:", tokensToSell.toString());
+    console.log("Selling half of the buyer’s tokens:", tokensInCurveScaleDown.toString());
     const supplyBeforeSell = ownedTokenDataAfterBuy.supply;
 
+
     const ixSell = await program.methods
-      .sellInstruction(new BN(tokensToSell.toString()))
+      .sellInstruction(new BN(tokensInCurveScaleDown.toString()))
       .accounts({
         tokenSeed: tokenSeedKeypair.publicKey,
         user: buyerKeypair.publicKey,
@@ -311,14 +321,22 @@ describe("Bonding Curve (Lamports) Test", () => {
 
     console.log("Buyer ATA after sell:", buyerAtaInfoAfterSell.amount.toString());
     console.log("Tokens actually burned:", tokensBurned.toString());
+    console.log("OwnedToken supply before sell:", supplyBeforeSell.toString());
     console.log("OwnedToken supply after sell:", ownedTokenDataAfterSell.supply.toString());
     console.log("Supply changed by:", deltaSupplyAfterSell.toString());
 
-    assert(tokensBurned > BigInt("0"), "We expected to burn some tokens");
     assert(
-      deltaSupplyAfterSell.eq(new BN(tokensBurned.toString())),
-      "Supply should increase by exactly the burned amount"
+      buyerAtaInfoAfterSell.amount < tokensBuyerHas,
+      "ATA balance should have decreased after selling!"
     );
+    assert(tokensBurned > BigInt("0"), "We expected to burn some tokens");
+
+    const deltaSupplyInBase = deltaSupplyAfterSell.mul(new BN(10 ** 9));
+    assert(
+      deltaSupplyInBase.eq(new BN(tokensBurned.toString())),
+      "Supply should increase by exactly the burned amount (in base units)"
+    );
+
 
     console.log("==== TEST PASSED ====");
   });

@@ -1,5 +1,5 @@
 use super::traits::BondingCurveTrait;
-use anchor_lang::{prelude::*, solana_program::native_token::LAMPORTS_PER_SOL};
+use anchor_lang::prelude::*;
 
 /// A smooth bonding curve tracking the total base asset (e.g., SOL, XBT) deposited.
 ///
@@ -38,7 +38,6 @@ impl BondingCurveTrait for SmoothBondingCurve {
         let new_y = self.y_of_x(self.x.saturating_add(base_in));
         let minted = new_y.saturating_sub(old_y);
         self.x = self.x.saturating_add(base_in);
-        // minted * LAMPORTS_PER_SOL as u128 // TODO: Remove this hack; the formula should calculate in actual lamports.
         minted
     }
 
@@ -78,16 +77,12 @@ mod tests {
             x: 0,
         };
 
-        // Buy tokens with 1 SOL (in lamports)
         let base_in = 0.001 * LAMPORTS_PER_SOL as f64;
         let minted = curve.buy_exact_input(base_in as u64);
         println!("minted: {}", minted);
 
         // Ensure the minted token amount is within the expected range
-        // minted: 35_766_000_000_000
-        // let minted = minted / LAMPORTS_PER_SOL as u128;
         assert!(
-            // (34_600..36_700).contains(&(minted as u64)),
             (34_600..36_700).contains(&(minted as u64)),
             "Minted tokens out of expected range: {}",
             minted
@@ -157,13 +152,14 @@ mod tests {
         };
 
         // First, buy tokens with 10 SOL
-        let sol_in = 10 * LAMPORTS_PER_SOL;
-        let minted_tokens = curve.buy_exact_input(sol_in);
+        let sol_in = 0.1 * LAMPORTS_PER_SOL as f64;
+        let minted_tokens = curve.buy_exact_input(sol_in as u64);
 
         // Then, sell half of the tokens
         let tokens_to_sell = minted_tokens / 2;
+        println!("tokens_to_sell: {}", tokens_to_sell);
         let lamports_out = curve.sell_exact_input(tokens_to_sell);
-
+        println!("lamports_out: {}", lamports_out);
         // Ensure that selling tokens results in receiving some lamports
         assert!(
             lamports_out > 0,

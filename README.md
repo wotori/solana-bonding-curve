@@ -31,12 +31,29 @@ Note: Tests may not fully run on localnet at this time because the Metaplex prog
 
 It may also be useful to note that after generating your devnet wallet, you can add its key array directly to Phantom so you can see tokens appear in your wallet.
 
+TODO: add to doc 
+```
+solana-keygen new --outfile target-deploy-keypair.json
+solana-keygen pubkey target-deploy-keypair.json
+anchor deploy --program-name bonding_curve --program-keypair target-deploy-keypair.json
+```
+
+get addresses and faucet tokens
+```
+solana address --keypair ~/.config/solana/devnet-owner.json
+solana address --keypair ~/.config/solana/devnet-buyer.json
+```
+get current balance
+```
+solana address --keypair ~/.config/solana/devnet-owner.json | solana balance
+solana address --keypair ~/.config/solana/devnet-buyer.json | solana balance
+```
+
 ---
 
 ### 1. Generate dev-net keypair
 ```bash
 solana-keygen new --outfile ~/.config/solana/devnet-owner.json
-
 solana-keygen new --outfile ~/.config/solana/devnet-buyer.json
 ```
 
