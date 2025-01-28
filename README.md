@@ -69,7 +69,7 @@ This approach tests all crucial parts of the bonding curve:
 
 - [ ] Add a negative test to verify behavior when attempting to mint more tokens than the remaining `ownedToken.supply` allows (e.g. check `InsufficientTokenSupply` error).
 - [ ] Explore edge cases for integer overflow/underflow, e.g. extremely large `lamports` inputs.
-- [ ] Confirm behavior when `sell_instruction` receives tokensIn > actual minted tokens.
+- [ ] Confirm behavior when `sell_exact_input_instruction` receives tokensIn > actual minted tokens.
 
 ### Testing Instructions
 

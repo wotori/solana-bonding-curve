@@ -56,7 +56,10 @@ pub struct SellToken<'info> {
     pub system_program: UncheckedAccount<'info>,
 }
 
-pub fn sell_instruction(ctx: Context<SellToken>, normalized_token_amount: u64) -> Result<()> {
+pub fn sell_exact_input_instruction(
+    ctx: Context<SellToken>,
+    normalized_omni_token_amount: u64,
+) -> Result<()> {
     // --------------------------------------------------------------------
     // 1) Burn user's tokens
     // --------------------------------------------------------------------
@@ -69,7 +72,7 @@ pub fn sell_instruction(ctx: Context<SellToken>, normalized_token_amount: u64) -
         },
     );
 
-    let tokens_to_burn = normalized_token_amount
+    let tokens_to_burn = normalized_omni_token_amount
         .checked_mul(10_u64.pow(omni_params::DECIMALS as u32))
         .ok_or(CustomError::MathOverflow)?;
 
@@ -79,9 +82,9 @@ pub fn sell_instruction(ctx: Context<SellToken>, normalized_token_amount: u64) -
     // 2) Calculate how much SOL to return
     // --------------------------------------------------------------------
     let owned_token = &mut ctx.accounts.owned_token;
-    let lamports_return = owned_token
+    let base_token = owned_token
         .bonding_curve
-        .sell_exact_input(normalized_token_amount as u128);
+        .sell_exact_input(normalized_omni_token_amount as u128);
 
     // --------------------------------------------------------------------
     // 3) Transfer SOL from escrow -> user
@@ -100,7 +103,7 @@ pub fn sell_instruction(ctx: Context<SellToken>, normalized_token_amount: u64) -
     let transfer_ix = anchor_lang::solana_program::system_instruction::transfer(
         &ctx.accounts.escrow_pda.key(),
         &ctx.accounts.user.key(),
-        lamports_return,
+        base_token,
     );
     invoke_signed(
         &transfer_ix,
@@ -117,7 +120,80 @@ pub fn sell_instruction(ctx: Context<SellToken>, normalized_token_amount: u64) -
     // --------------------------------------------------------------------
     owned_token.supply = owned_token
         .supply
-        .checked_add(normalized_token_amount)
+        .checked_add(normalized_omni_token_amount)
+        .ok_or(CustomError::MathOverflow)?;
+
+    Ok(())
+}
+
+pub fn sell_exact_output_instruction(
+    ctx: Context<SellToken>,
+    base_token_requested: u64,
+) -> Result<()> {
+    // --------------------------------------------------------------------
+    // 1) Determine how many tokens need to be burned
+    // --------------------------------------------------------------------
+    let owned_token = &mut ctx.accounts.owned_token;
+    let tokens_to_burn = owned_token
+        .bonding_curve
+        .sell_exact_output(base_token_requested as u128);
+
+    // Convert to raw token amount with decimals
+    let raw_burn_amount = tokens_to_burn
+        .checked_mul(10u64.pow(omni_params::DECIMALS as u32))
+        .ok_or(CustomError::MathOverflow)?;
+
+    // --------------------------------------------------------------------
+    // 2) Burn that many tokens from the user's token account
+    // --------------------------------------------------------------------
+    let cpi_ctx = CpiContext::new(
+        ctx.accounts.token_program.to_account_info(),
+        anchor_spl::token::Burn {
+            from: ctx.accounts.user_token_account.to_account_info(),
+            mint: ctx.accounts.mint.to_account_info(),
+            authority: ctx.accounts.user.to_account_info(),
+        },
+    );
+
+    token::burn(cpi_ctx, raw_burn_amount)?;
+
+    // --------------------------------------------------------------------
+    // 3) Transfer the exact lamports to the user
+    // --------------------------------------------------------------------
+    let bump = owned_token.escrow_bump;
+    let creator_key = ctx.accounts.creator.key();
+    let token_seed_key = ctx.accounts.token_seed.key();
+
+    let escrow_seeds = &[
+        b"escrow".as_ref(),
+        creator_key.as_ref(),
+        token_seed_key.as_ref(),
+        &[bump],
+    ];
+
+    let transfer_ix = anchor_lang::solana_program::system_instruction::transfer(
+        &ctx.accounts.escrow_pda.key(),
+        &ctx.accounts.user.key(),
+        base_token_requested,
+    );
+
+    invoke_signed(
+        &transfer_ix,
+        &[
+            ctx.accounts.escrow_pda.to_account_info(),
+            ctx.accounts.user.to_account_info(),
+            ctx.accounts.system_program.to_account_info(),
+        ],
+        &[escrow_seeds],
+    )?;
+
+    // --------------------------------------------------------------------
+    // 4) Increase the supply on the OwnedToken
+    //    (Because we "return" tokens to the curve’s supply logic)
+    // --------------------------------------------------------------------
+    owned_token.supply = owned_token
+        .supply
+        .checked_add(tokens_to_burn as u64)
         .ok_or(CustomError::MathOverflow)?;
 
     Ok(())

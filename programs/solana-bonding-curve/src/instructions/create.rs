@@ -1,5 +1,5 @@
 use anchor_lang::prelude::*;
-use anchor_lang::{solana_program::native_token::LAMPORTS_PER_SOL, system_program};
+use anchor_lang::system_program;
 
 use anchor_spl::associated_token::AssociatedToken;
 use anchor_spl::token::{Mint, Token, TokenAccount};
@@ -61,9 +61,9 @@ pub fn create_token_instruction(ctx: Context<CreateToken>) -> Result<()> {
     owned_token.supply = 1_073_000_191;
 
     owned_token.bonding_curve = SmoothBondingCurve {
-        a: 1_073_000_191,
-        k: 32_190_005_730 * LAMPORTS_PER_SOL as u128,
-        c: 30 * LAMPORTS_PER_SOL,
+        a: omni_params::TOTAL_TOKENS,
+        k: omni_params::BONDING_SCALE_FACTOR,
+        c: omni_params::VIRTUAL_POOL_OFFSET,
         x: 0,
     };
 

@@ -23,53 +23,48 @@ const METAPLEX_PROGRAM_ID = new PublicKey(
   "metaqbxxUerdq28cj1RbAWkYQm3ybzjb6a8bt518x1s"
 );
 
-// 1) Setup anchor provider
-const connection = new anchor.web3.Connection("https://api.devnet.solana.com");
-const keypath = path.join(process.env.HOME!, ".config", "solana", "devnet-owner.json");
-const secretKeyArray = JSON.parse(fs.readFileSync(keypath, "utf-8"));
+const DEVNET_URL = "https://api.devnet.solana.com";
+const KEYPAIR_PATH = path.join(process.env.HOME!, ".config", "solana", "devnet-owner.json");
+const BUYER_KEYPAIR_PATH = path.join(process.env.HOME!, ".config", "solana", "devnet-buyer.json");
+
+const connection = new anchor.web3.Connection(DEVNET_URL, {
+  commitment: "finalized",
+});
+
+const secretKeyArray = JSON.parse(fs.readFileSync(KEYPAIR_PATH, "utf-8"));
 const devnetKeypair = Keypair.fromSecretKey(new Uint8Array(secretKeyArray));
 const wallet = new anchor.Wallet(devnetKeypair);
 const provider = new anchor.AnchorProvider(connection, wallet, {});
 anchor.setProvider(provider);
 
-// 2) The anchor program
 const program = anchor.workspace.BondingCurve as Program<BondingCurve>;
 const creator = devnetKeypair;
 
-// Some metadata for setMetadataInstruction
 const now = new Date();
 const year = now.getFullYear().toString().slice(2);
-const month = String(now.getMonth() + 1).padStart(2, '0');
-const day = String(now.getDate()).padStart(2, '0');
-const hours = String(now.getHours()).padStart(2, '0');
-const minutes = String(now.getMinutes()).padStart(2, '0');
+const month = String(now.getMonth() + 1).padStart(2, "0");
+const day = String(now.getDate()).padStart(2, "0");
+const hours = String(now.getHours()).padStart(2, "0");
+const minutes = String(now.getMinutes()).padStart(2, "0");
 
 const tokenName = `${year}_${month}_${day}_${hours}_${minutes}`;
 const tokenSymbol = "HWD";
 const tokenUri = "https://ekza.io/ipfs/QmVjBTRsbAM96BnNtZKrR8i3hGRbkjnQ3kugwXn6BVFu2k";
 
-// We'll deposit 0.001 SOL initially
 const initialDepositLamports = new BN(0.001 * LAMPORTS_PER_SOL);
 
 describe("Bonding Curve (Lamports) Test (multi-step with all asserts)", () => {
-  // Shared variables across steps
   let tokenSeedKeypair: Keypair;
   let mintKeypair: Keypair;
-
   let ownedTokenPda: PublicKey;
   let escrowPda: PublicKey;
   let metadataPda: PublicKey;
   let creatorTokenAccount: PublicKey;
-
-  // We'll store supply & ATA data between steps
   let ownedTokenDataBefore: any;
   let buyerKeypair: Keypair;
   let buyerTokenAccount: PublicKey;
 
-  it("Step 1) Create, Init Escrow, MintInitial, SetMetadata", async () => {
-    //
-    // 0) Generate keypairs + PDAs
-    //
+  before(async () => {
     tokenSeedKeypair = Keypair.generate();
     mintKeypair = Keypair.generate();
 
@@ -81,6 +76,7 @@ describe("Bonding Curve (Lamports) Test (multi-step with all asserts)", () => {
       ],
       program.programId
     );
+
     [escrowPda] = PublicKey.findProgramAddressSync(
       [
         Buffer.from("escrow"),
@@ -89,6 +85,7 @@ describe("Bonding Curve (Lamports) Test (multi-step with all asserts)", () => {
       ],
       program.programId
     );
+
     [metadataPda] = PublicKey.findProgramAddressSync(
       [
         Buffer.from("metadata"),
@@ -98,22 +95,13 @@ describe("Bonding Curve (Lamports) Test (multi-step with all asserts)", () => {
       METAPLEX_PROGRAM_ID
     );
 
-    // Creator’s ATA
     creatorTokenAccount = await getAssociatedTokenAddress(
       mintKeypair.publicKey,
       creator.publicKey
     );
+  });
 
-    console.log("===== PDAs =====");
-    console.log("OwnedToken PDA:", ownedTokenPda.toBase58());
-    console.log("Escrow PDA:", escrowPda.toBase58());
-    console.log("Mint Pubkey:", mintKeypair.publicKey.toBase58());
-    console.log("Creator ATA:", creatorTokenAccount.toBase58());
-    console.log("Metadata PDA:", metadataPda.toBase58());
-
-    //
-    // 1) CREATE
-    //
+  it("Step 1) Create, Init Escrow, MintInitial, SetMetadata", async () => {
     const ixCreate = await program.methods
       .createTokenInstruction()
       .accounts({
@@ -130,9 +118,6 @@ describe("Bonding Curve (Lamports) Test (multi-step with all asserts)", () => {
       .signers([mintKeypair])
       .instruction();
 
-    //
-    // 2) INIT ESCROW
-    //
     const ixInitEscrow = await program.methods
       .initEscrowInstruction()
       .accounts({
@@ -144,9 +129,6 @@ describe("Bonding Curve (Lamports) Test (multi-step with all asserts)", () => {
       })
       .instruction();
 
-    //
-    // 3) MINT INITIAL
-    //
     const ixMintInitial = await program.methods
       .mintInitialTokensInstruction(initialDepositLamports)
       .accounts({
@@ -161,9 +143,6 @@ describe("Bonding Curve (Lamports) Test (multi-step with all asserts)", () => {
       })
       .instruction();
 
-    //
-    // 4) SET METADATA
-    //
     const ixSetMetadata = await program.methods
       .setMetadataInstruction(tokenName, tokenSymbol, tokenUri)
       .accounts({
@@ -180,7 +159,6 @@ describe("Bonding Curve (Lamports) Test (multi-step with all asserts)", () => {
       .instruction();
 
     try {
-      console.log("Sending transaction for: Create + Init + MintInitial + Metadata...");
       const tx1 = new Transaction()
         .add(ixCreate)
         .add(ixInitEscrow)
@@ -195,41 +173,31 @@ describe("Bonding Curve (Lamports) Test (multi-step with all asserts)", () => {
       throw err;
     }
 
-    // Check OwnedToken & Creator’s ATA
     const creatorAtaInfo = await getAccount(connection, creatorTokenAccount);
     ownedTokenDataBefore = await program.account.ownedToken.fetch(ownedTokenPda);
 
-    console.log("Creator ATA after initial mint:", creatorAtaInfo.amount.toString());
-    console.log("OwnedToken.supply after initial mint:", ownedTokenDataBefore.supply.toString());
-
-    // If deposit_lamports < 1 SOL, watch out for integer division => might be 0 tokens
     assert(
       creatorAtaInfo.amount >= BigInt(0),
       "Creator ATA should have minted at least 0 tokens (check integer division)."
     );
   });
 
-  it("Step 2) Buyer deposits 0.001 SOL => receives tokens", async () => {
-    // Load buyer from local keypair
-    const buyerKeypath = path.join(process.env.HOME!, ".config", "solana", "devnet-buyer.json");
-    const buyerSecretArr = JSON.parse(fs.readFileSync(buyerKeypath, "utf-8"));
+  it("Step 2) Buyer deposits 0.001 SOL => receives tokens (buyExactInputInstruction)", async () => {
+    const buyerSecretArr = JSON.parse(fs.readFileSync(BUYER_KEYPAIR_PATH, "utf-8"));
     buyerKeypair = Keypair.fromSecretKey(new Uint8Array(buyerSecretArr));
 
-    // Buyer’s ATA
     buyerTokenAccount = await getAssociatedTokenAddress(
       mintKeypair.publicKey,
       buyerKeypair.publicKey
     );
 
-    // We'll deposit 0.001 SOL
     const buyLamports = new BN(0.001 * LAMPORTS_PER_SOL);
     const buyerAtaInfoBefore = await getAccount(connection, buyerTokenAccount).catch(() => null);
     const buyerTokensBefore = buyerAtaInfoBefore ? buyerAtaInfoBefore.amount : BigInt("0");
     const supplyBeforeBuy = ownedTokenDataBefore.supply;
 
-    // Build buy instruction
     const ixBuy = await program.methods
-      .buyInstruction(buyLamports)
+      .buyExactInputInstruction(buyLamports)
       .accounts({
         tokenSeed: tokenSeedKeypair.publicKey,
         buyer: buyerKeypair.publicKey,
@@ -251,18 +219,13 @@ describe("Bonding Curve (Lamports) Test (multi-step with all asserts)", () => {
     );
     console.log("Buyer purchased 0.001 SOL worth of tokens. TX Sig:", txBuySig);
 
-    // Check new balances
     const buyerAtaInfoAfterBuy = await getAccount(connection, buyerTokenAccount);
     const ownedTokenDataAfterBuy = await program.account.ownedToken.fetch(ownedTokenPda);
 
     const deltaBuyer = buyerAtaInfoAfterBuy.amount - buyerTokensBefore;
     const deltaSupply = supplyBeforeBuy.sub(ownedTokenDataAfterBuy.supply);
+    // Scale supply difference up by 10^9 decimals for comparison:
     const scaledDeltaSupply = deltaSupply.mul(new BN(10 ** 9));
-
-    console.log("Buyer ATA after buy:", buyerAtaInfoAfterBuy.amount.toString());
-    console.log("OwnedToken supply after buy:", ownedTokenDataAfterBuy.supply.toString());
-    console.log("Tokens minted to buyer:", deltaBuyer.toString());
-    console.log("Supply decreased by:", deltaSupply.toString());
 
     assert(deltaBuyer > BigInt("0"), "Buyer should receive some positive token amount");
     assert(
@@ -270,26 +233,20 @@ describe("Bonding Curve (Lamports) Test (multi-step with all asserts)", () => {
       "Supply should decrease exactly by minted amount"
     );
 
-    // Update for next step
     ownedTokenDataBefore = ownedTokenDataAfterBuy;
   });
 
-  it("Step 3) Buyer sells half of their tokens", async () => {
-    // Re-check buyer’s ATA
+  it("Step 3) Buyer sells half of their tokens (sellExactInputInstruction)", async () => {
     const buyerAtaInfoAfterBuy = await getAccount(connection, buyerTokenAccount);
     const tokensBuyerHas = buyerAtaInfoAfterBuy.amount;
-
-    console.log("Buyer has:", tokensBuyerHas.toString());
     const tokensToSell = tokensBuyerHas / BigInt("2");
+    // Convert from raw tokens to "curve" base (assuming 10^9 decimals here):
     const tokensInCurveScaleDown = tokensToSell / BigInt(10 ** 9);
-
-    console.log("Selling half of buyer’s tokens:", tokensInCurveScaleDown.toString());
 
     const supplyBeforeSell = ownedTokenDataBefore.supply;
 
-    // Sell
     const ixSell = await program.methods
-      .sellInstruction(new BN(tokensInCurveScaleDown.toString()))
+      .sellExactInputInstruction(new BN(tokensInCurveScaleDown.toString()))
       .accounts({
         tokenSeed: tokenSeedKeypair.publicKey,
         user: buyerKeypair.publicKey,
@@ -310,22 +267,11 @@ describe("Bonding Curve (Lamports) Test (multi-step with all asserts)", () => {
     );
     console.log("Sell transaction Sig:", txSellSig);
 
-    // Check final
     const buyerAtaInfoAfterSell = await getAccount(connection, buyerTokenAccount);
     const ownedTokenDataAfterSell = await program.account.ownedToken.fetch(ownedTokenPda);
 
     const tokensBurned = tokensBuyerHas - buyerAtaInfoAfterSell.amount;
     const deltaSupplyAfterSell = ownedTokenDataAfterSell.supply.sub(supplyBeforeSell);
-
-    const buyerTokenAccOnChain = await getAccount(connection, buyerTokenAccount);
-    console.log("ATA owner is:", buyerTokenAccOnChain.owner.toBase58());
-    console.log("User is:", buyerKeypair.publicKey.toBase58());
-
-    console.log("Buyer ATA after sell:", buyerAtaInfoAfterSell.amount.toString());
-    console.log("Tokens actually burned:", tokensBurned.toString());
-    console.log("OwnedToken supply before sell:", supplyBeforeSell.toString());
-    console.log("OwnedToken supply after sell:", ownedTokenDataAfterSell.supply.toString());
-    console.log("Supply changed by:", deltaSupplyAfterSell.toString());
 
     assert(
       buyerAtaInfoAfterSell.amount < tokensBuyerHas,
@@ -333,12 +279,191 @@ describe("Bonding Curve (Lamports) Test (multi-step with all asserts)", () => {
     );
     assert(tokensBurned > BigInt("0"), "We expected to burn some tokens");
 
+    // Scale supply difference up by 10^9 decimals for comparison:
     const deltaSupplyInBase = deltaSupplyAfterSell.mul(new BN(10 ** 9));
     assert(
       deltaSupplyInBase.eq(new BN(tokensBurned.toString())),
-      "Supply should increase by exactly the burned amount (in base units)"
+      "Supply should increase exactly by the burned amount (in base units)"
     );
 
-    console.log("==== TEST PASSED ====");
+    ownedTokenDataBefore = ownedTokenDataAfterSell;
+  });
+
+  // ================================================================
+  // (4) buyExactOutputInstruction and (5) sellExactOutputInstruction
+  // ================================================================
+
+  it("Step 4) Buyer buys EXACT output: requests exactly 10 tokens (buyExactOutputInstruction)", async () => {
+    // We'll request 10 'curve units' of tokens (before multiplying by decimals).
+    const tokensOutWanted = new BN(10);
+
+    // 1) Fetch buyer token balance + current supply
+    const buyerAtaInfoBefore = await getAccount(connection, buyerTokenAccount);
+    const buyerTokensBefore = buyerAtaInfoBefore.amount;
+    const supplyBefore = ownedTokenDataBefore.supply;
+
+    console.log("=== [Step 4] Buyer buys EXACT output ===");
+    console.log("Buyer tokens BEFORE (raw):", buyerTokensBefore.toString());
+    console.log("Supply BEFORE (curve units):", supplyBefore.toString());
+    console.log("Tokens requested (curve units):", tokensOutWanted.toString());
+
+    // 2) Construct the instruction
+    const ixBuyExactOutput = await program.methods
+      .buyExactOutputInstruction(tokensOutWanted)
+      .accounts({
+        tokenSeed: tokenSeedKeypair.publicKey,
+        buyer: buyerKeypair.publicKey,
+        creator: creator.publicKey,
+        ownedToken: ownedTokenPda,
+        escrowPda,
+        mint: mintKeypair.publicKey,
+        buyerTokenAccount,
+        tokenProgram: TOKEN_PROGRAM_ID,
+        systemProgram: SystemProgram.programId
+      })
+      .signers([buyerKeypair])
+      .instruction();
+
+    // 3) Send transaction
+    const txBuyExactOutSig = await provider.sendAndConfirm(
+      new Transaction().add(ixBuyExactOutput),
+      [buyerKeypair]
+    );
+    console.log("BuyExactOutput TX Sig:", txBuyExactOutSig);
+
+    // 4) Post-transaction checks
+    const buyerAtaInfoAfter = await getAccount(connection, buyerTokenAccount);
+    const ownedTokenDataAfter = await program.account.ownedToken.fetch(ownedTokenPda);
+
+    const buyerTokensAfter = buyerAtaInfoAfter.amount;
+    console.log("Buyer tokens AFTER (raw):", buyerTokensAfter.toString());
+
+    const supplyAfter = ownedTokenDataAfter.supply;
+    console.log("Supply AFTER (curve units):", supplyAfter.toString());
+
+    // 5) Compute minted + supply deltas
+    const expectedRawMinted = tokensOutWanted.mul(new BN(10 ** 9)); // if 9 decimals
+    const actualMinted = buyerTokensAfter - buyerTokensBefore; // BigInt difference
+
+    console.log("Expected minted (raw):", expectedRawMinted.toString());
+    console.log("Actual minted (raw):", actualMinted.toString());
+
+    const supplyDelta = supplyBefore.sub(supplyAfter); // supply goes DOWN
+    const supplyDeltaRaw = supplyDelta.mul(new BN(10 ** 9));
+
+    console.log("Supply delta (curve units):", supplyDelta.toString());
+    console.log("Supply delta (raw):", supplyDeltaRaw.toString());
+
+    // 6) Assertions
+    const expectedRawMintedBigInt = BigInt(expectedRawMinted.toString());
+    const actualMintedBigInt = BigInt(actualMinted.toString());
+
+    assert(
+      expectedRawMintedBigInt === actualMintedBigInt,
+      `Expected minted = ${expectedRawMintedBigInt}, but got ${actualMintedBigInt}`
+    );
+
+    assert(
+      supplyDeltaRaw.eq(new BN(actualMinted.toString())),
+      "Supply should decrease by exactly that minted amount (in raw units)."
+    );
+
+    // Update reference so next test sees the new OwnedToken data
+    ownedTokenDataBefore = ownedTokenDataAfter;
+  });
+
+  it("Step 5) Buyer sells EXACT output: requests exactly 10,000 lamports (sellExactOutputInstruction)", async () => {
+    const lamportsWanted = new BN(10_000);
+
+    // Log Buyer’s SOL balance BEFORE
+    const buyerSolBalanceBefore = await provider.connection.getBalance(buyerKeypair.publicKey);
+    console.log("Buyer SOL balance BEFORE:", buyerSolBalanceBefore.toString());
+
+    // 1) Fetch buyer token account + current supply
+    const buyerAtaInfoBefore = await getAccount(connection, buyerTokenAccount);
+    const buyerTokensBefore = buyerAtaInfoBefore.amount;
+
+    console.log("=== [Step 5] Buyer sells EXACT output ===");
+    console.log("Buyer ATA info BEFORE:", {
+      address: buyerTokenAccount.toBase58(),
+      owner: buyerAtaInfoBefore.owner.toBase58(),
+      mint: buyerAtaInfoBefore.mint.toBase58(),
+      amount: buyerTokensBefore.toString(),
+    });
+
+    console.log("Buyer ATA info BEFORE (raw):", buyerAtaInfoBefore);
+
+    const supplyBefore = ownedTokenDataBefore.supply;
+    console.log("Supply BEFORE (curve units):", supplyBefore.toString());
+    console.log("Buyer tokens BEFORE (raw):", buyerTokensBefore.toString());
+
+    // 2) Construct instruction
+    const ixSellExactOutput = await program.methods
+      .sellExactOutputInstruction(lamportsWanted)
+      .accounts({
+        tokenSeed: tokenSeedKeypair.publicKey,
+        user: buyerKeypair.publicKey,
+        creator: creator.publicKey,
+        ownedToken: ownedTokenPda,
+        escrowPda,
+        mint: mintKeypair.publicKey,
+        userTokenAccount: buyerTokenAccount,
+        tokenProgram: TOKEN_PROGRAM_ID,
+        systemProgram: SystemProgram.programId
+      })
+      .signers([buyerKeypair])
+      .instruction();
+
+    // 3) Send transaction
+    const txSellExactOutSig = await provider.sendAndConfirm(
+      new Transaction().add(ixSellExactOutput),
+      [buyerKeypair]
+    );
+    console.log("SellExactOutput TX Sig:", txSellExactOutSig);
+
+    // (B) Log Buyer’s SOL balance AFTER (optional)
+    const buyerSolBalanceAfter = await provider.connection.getBalance(buyerKeypair.publicKey);
+    console.log("Buyer SOL balance AFTER:", buyerSolBalanceAfter.toString());
+    console.log(
+      "Buyer SOL gained/lost:",
+      (buyerSolBalanceAfter - buyerSolBalanceBefore).toString()
+    );
+
+    // 4) Post-transaction checks: fetch updated ATA + supply
+    const buyerAtaInfoAfter = await getAccount(connection, buyerTokenAccount);
+    const buyerTokensAfter = buyerAtaInfoAfter.amount;
+
+    console.log("Buyer ATA info AFTER:", {
+      address: buyerTokenAccount.toBase58(),
+      owner: buyerAtaInfoAfter.owner.toBase58(),
+      mint: buyerAtaInfoAfter.mint.toBase58(),
+      amount: buyerTokensAfter.toString(),
+    });
+
+    console.log("Buyer ATA info AFTER (raw):", buyerAtaInfoAfter);
+    const ownedTokenDataAfter = await program.account.ownedToken.fetch(ownedTokenPda);
+    const supplyAfter = ownedTokenDataAfter.supply;
+
+    console.log("Supply AFTER (curve units):", supplyAfter.toString());
+    console.log("Buyer tokens AFTER (raw):", buyerTokensAfter.toString());
+
+    // 5) Compute tokens burned + supply deltas
+    const tokensBurned = buyerTokensBefore - buyerTokensAfter; // BigInt
+    console.log("Tokens burned (raw):", tokensBurned.toString());
+
+    const supplyDelta = supplyAfter.sub(supplyBefore); // supply should go UP
+    const supplyDeltaRaw = supplyDelta.mul(new BN(10 ** 9));
+    console.log("Supply delta (curve units):", supplyDelta.toString());
+    console.log("Supply delta (raw):", supplyDeltaRaw.toString());
+
+    // 6) Assertions
+    assert(tokensBurned > BigInt("0"), "Should have burned > 0 tokens.");
+    const tokensBurnedBN = new BN(tokensBurned.toString());
+    assert(
+      supplyDeltaRaw.eq(tokensBurnedBN),
+      "Supply should increase by exactly the number of burned tokens (raw)."
+    );
+
+    console.log("==== ALL TESTS PASSED (sellExactOutput) ====");
   });
 });

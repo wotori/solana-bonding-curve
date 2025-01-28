@@ -48,7 +48,7 @@ pub mod bonding_curve {
         ctx: Context<MintInitialTokens>,
         deposit_lamports: u64,
     ) -> Result<()> {
-        instructions::mint::mint_initial_tokens_instruction(ctx, deposit_lamports)
+        instructions::mint_initial_tokens_instruction(ctx, deposit_lamports)
     }
 
     // (1.4) SET METADATA
@@ -61,11 +61,22 @@ pub mod bonding_curve {
         instructions::set_metadata_instruction(ctx, name, symbol, uri)
     }
 
-    pub fn buy_instruction(ctx: Context<BuyToken>, lamports: u64) -> Result<()> {
-        instructions::buy_instruction(ctx, lamports)
+    pub fn buy_exact_input_instruction(ctx: Context<BuyToken>, lamports: u64) -> Result<()> {
+        instructions::buy_exact_input_instruction(ctx, lamports)
     }
 
-    pub fn sell_instruction(ctx: Context<SellToken>, normalized_token_amount: u64) -> Result<()> {
-        instructions::sell_instruction(ctx, normalized_token_amount)
+    pub fn buy_exact_output_instruction(ctx: Context<BuyToken>, tokens_out: u64) -> Result<()> {
+        instructions::buy_exact_output_instruction(ctx, tokens_out)
+    }
+
+    pub fn sell_exact_input_instruction(
+        ctx: Context<SellToken>,
+        normalized_token_amount: u64,
+    ) -> Result<()> {
+        instructions::sell_exact_input_instruction(ctx, normalized_token_amount)
+    }
+
+    pub fn sell_exact_output_instruction(ctx: Context<SellToken>, lamports: u64) -> Result<()> {
+        instructions::sell_exact_output_instruction(ctx, lamports)
     }
 }
