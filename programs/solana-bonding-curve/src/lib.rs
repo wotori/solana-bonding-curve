@@ -2,35 +2,54 @@ use anchor_lang::prelude::*;
 
 mod curves;
 mod errors;
-mod omni_params;
+mod xyber_params;
 
 mod instructions;
 
+use crate::xyber_params::CreateTokenParams;
 use curves::SmoothBondingCurve;
 use instructions::*;
 
 declare_id!("GMjvbDmasN1FyYD6iGfj5u8EETdk9gTQnyoZUQA4PVGT");
 
 #[account]
-pub struct OwnedToken {
+pub struct XyberToken {
     pub supply: u64,
+    // pub decimals: u8,
+    pub grad_threshold: u16,
+
     pub bonding_curve: SmoothBondingCurve,
+
     pub escrow_pda: Pubkey,
     pub escrow_bump: u8,
+
+    pub accepted_base_mint: Pubkey,
 }
 
-impl OwnedToken {
-    // 8 discriminator + 8 supply + 40 bonding_curve + 32 escrow + 1 bump = 89
-    pub const LEN: usize = 89;
+impl XyberToken {
+    pub const LEN: usize = 
+        8  // Discriminator (account type)
+        + 8  // supply (u64)
+        // + 1  // decimals (u8)
+        + 2  // grad_threshold (u16)
+        + 40 // bonding_curve (struct)
+        + 32 // escrow_pda (Pubkey)
+        + 1  // escrow_bump (u8)
+        + 32 // accepted_base_mint (Pubkey)
+    ;
 }
 
 #[program]
 pub mod bonding_curve {
+
     use super::*;
 
     // (1.1) CREATE TOKEN
-    pub fn create_token_instruction(ctx: Context<CreateToken>) -> Result<()> {
-        instructions::create_token_instruction(ctx)
+    pub fn create_token_instruction(
+        ctx: Context<CreateToken>,
+        params: CreateTokenParams,
+    ) -> Result<()> {
+        instructions::create_token_instruction(ctx, params)
     }
 
     // (1.2) INIT ESCROW
@@ -43,7 +62,7 @@ pub mod bonding_curve {
     //   - Transfer lamports from creator -> escrow
     //   - Use bonding curve to calculate how many tokens that buys
     //   - Mint them to creator's ATA
-    //   - Subtract from OwnedToken.supply
+    //   - Subtract from XyberToken.supply
     pub fn mint_initial_tokens_instruction(
         ctx: Context<MintInitialTokens>,
         deposit_lamports: u64,

@@ -27,6 +27,11 @@ const DEVNET_URL = "https://api.devnet.solana.com";
 const KEYPAIR_PATH = path.join(process.env.HOME!, ".config", "solana", "devnet-owner.json");
 const BUYER_KEYPAIR_PATH = path.join(process.env.HOME!, ".config", "solana", "devnet-buyer.json");
 
+const TOTAL_TOKENS = 1_073_000_191;
+const VIRTUAL_POOL_OFFSET = 30 * LAMPORTS_PER_SOL;
+const BONDING_SCALE_FACTOR = (BigInt("32_190_005_730") * BigInt(LAMPORTS_PER_SOL)).toString();
+const TOKEN_BASE_PUB_KEY = new PublicKey("Apv67VdcTZ5hK9wkPGFaZpDrSHPYbb4q1Dtvss5dcj84");
+
 const connection = new anchor.web3.Connection(DEVNET_URL, {
   commitment: "finalized",
 });
@@ -70,7 +75,7 @@ describe("Bonding Curve (Lamports) Test (multi-step with all asserts)", () => {
 
     [ownedTokenPda] = PublicKey.findProgramAddressSync(
       [
-        Buffer.from("omni_token"),
+        Buffer.from("xyber_token"),
         creator.publicKey.toBuffer(),
         tokenSeedKeypair.publicKey.toBuffer()
       ],
@@ -103,11 +108,21 @@ describe("Bonding Curve (Lamports) Test (multi-step with all asserts)", () => {
 
   it("Step 1) Create, Init Escrow, MintInitial, SetMetadata", async () => {
     const ixCreate = await program.methods
-      .createTokenInstruction()
+      .createTokenInstruction({
+        tokenSupply: new BN(TOTAL_TOKENS),
+        tokenGradThrUsd: 1000,
+        bondingCurve: {
+          aTotalTokens: new BN(TOTAL_TOKENS),
+          kVirtualPoolOffset: new BN(VIRTUAL_POOL_OFFSET),
+          cBondingScaleFactor: new BN(BONDING_SCALE_FACTOR),
+          x: new BN(0),
+        },
+        acceptedBaseMint: TOKEN_BASE_PUB_KEY,
+      })
       .accounts({
         tokenSeed: tokenSeedKeypair.publicKey,
         creator: creator.publicKey,
-        ownedToken: ownedTokenPda,
+        xyberToken: ownedTokenPda,
         mint: mintKeypair.publicKey,
         creatorTokenAccount,
         associatedTokenProgram: ASSOCIATED_TOKEN_PROGRAM_ID,
@@ -123,7 +138,7 @@ describe("Bonding Curve (Lamports) Test (multi-step with all asserts)", () => {
       .accounts({
         tokenSeed: tokenSeedKeypair.publicKey,
         creator: creator.publicKey,
-        ownedToken: ownedTokenPda,
+        xyberToken: ownedTokenPda,
         escrowPda,
         systemProgram: SystemProgram.programId
       })
@@ -134,7 +149,7 @@ describe("Bonding Curve (Lamports) Test (multi-step with all asserts)", () => {
       .accounts({
         tokenSeed: tokenSeedKeypair.publicKey,
         creator: creator.publicKey,
-        ownedToken: ownedTokenPda,
+        xyberToken: ownedTokenPda,
         escrowPda,
         mint: mintKeypair.publicKey,
         creatorTokenAccount,
@@ -148,7 +163,7 @@ describe("Bonding Curve (Lamports) Test (multi-step with all asserts)", () => {
       .accounts({
         tokenSeed: tokenSeedKeypair.publicKey,
         creator: creator.publicKey,
-        ownedToken: ownedTokenPda,
+        xyberToken: ownedTokenPda,
         mint: mintKeypair.publicKey,
         metadata: metadataPda,
         tokenMetadataProgram: METAPLEX_PROGRAM_ID,
@@ -174,7 +189,7 @@ describe("Bonding Curve (Lamports) Test (multi-step with all asserts)", () => {
     }
 
     const creatorAtaInfo = await getAccount(connection, creatorTokenAccount);
-    ownedTokenDataBefore = await program.account.ownedToken.fetch(ownedTokenPda);
+    ownedTokenDataBefore = await program.account.xyberToken.fetch(ownedTokenPda);
 
     assert(
       creatorAtaInfo.amount >= BigInt(0),
@@ -202,7 +217,7 @@ describe("Bonding Curve (Lamports) Test (multi-step with all asserts)", () => {
         tokenSeed: tokenSeedKeypair.publicKey,
         buyer: buyerKeypair.publicKey,
         creator: creator.publicKey,
-        ownedToken: ownedTokenPda,
+        xyberToken: ownedTokenPda,
         escrowPda,
         mint: mintKeypair.publicKey,
         buyerTokenAccount,
@@ -220,7 +235,7 @@ describe("Bonding Curve (Lamports) Test (multi-step with all asserts)", () => {
     console.log("Buyer purchased 0.001 SOL worth of tokens. TX Sig:", txBuySig);
 
     const buyerAtaInfoAfterBuy = await getAccount(connection, buyerTokenAccount);
-    const ownedTokenDataAfterBuy = await program.account.ownedToken.fetch(ownedTokenPda);
+    const ownedTokenDataAfterBuy = await program.account.xyberToken.fetch(ownedTokenPda);
 
     const deltaBuyer = buyerAtaInfoAfterBuy.amount - buyerTokensBefore;
     const deltaSupply = supplyBeforeBuy.sub(ownedTokenDataAfterBuy.supply);
@@ -251,7 +266,7 @@ describe("Bonding Curve (Lamports) Test (multi-step with all asserts)", () => {
         tokenSeed: tokenSeedKeypair.publicKey,
         user: buyerKeypair.publicKey,
         creator: creator.publicKey,
-        ownedToken: ownedTokenPda,
+        xyberToken: ownedTokenPda,
         escrowPda,
         mint: mintKeypair.publicKey,
         userTokenAccount: buyerTokenAccount,
@@ -268,7 +283,7 @@ describe("Bonding Curve (Lamports) Test (multi-step with all asserts)", () => {
     console.log("Sell transaction Sig:", txSellSig);
 
     const buyerAtaInfoAfterSell = await getAccount(connection, buyerTokenAccount);
-    const ownedTokenDataAfterSell = await program.account.ownedToken.fetch(ownedTokenPda);
+    const ownedTokenDataAfterSell = await program.account.xyberToken.fetch(ownedTokenPda);
 
     const tokensBurned = tokensBuyerHas - buyerAtaInfoAfterSell.amount;
     const deltaSupplyAfterSell = ownedTokenDataAfterSell.supply.sub(supplyBeforeSell);
@@ -310,7 +325,7 @@ describe("Bonding Curve (Lamports) Test (multi-step with all asserts)", () => {
         tokenSeed: tokenSeedKeypair.publicKey,
         buyer: buyerKeypair.publicKey,
         creator: creator.publicKey,
-        ownedToken: ownedTokenPda,
+        xyberToken: ownedTokenPda,
         escrowPda,
         mint: mintKeypair.publicKey,
         buyerTokenAccount,
@@ -329,7 +344,7 @@ describe("Bonding Curve (Lamports) Test (multi-step with all asserts)", () => {
 
     // 4) Post-transaction checks
     const buyerAtaInfoAfter = await getAccount(connection, buyerTokenAccount);
-    const ownedTokenDataAfter = await program.account.ownedToken.fetch(ownedTokenPda);
+    const ownedTokenDataAfter = await program.account.xyberToken.fetch(ownedTokenPda);
 
     const buyerTokensAfter = buyerAtaInfoAfter.amount;
     console.log("Buyer tokens AFTER (raw):", buyerTokensAfter.toString());
@@ -364,7 +379,7 @@ describe("Bonding Curve (Lamports) Test (multi-step with all asserts)", () => {
       "Supply should decrease by exactly that minted amount (in raw units)."
     );
 
-    // Update reference so next test sees the new OwnedToken data
+    // Update reference so next test sees the new XyberToken data
     ownedTokenDataBefore = ownedTokenDataAfter;
   });
 
@@ -400,7 +415,7 @@ describe("Bonding Curve (Lamports) Test (multi-step with all asserts)", () => {
         tokenSeed: tokenSeedKeypair.publicKey,
         user: buyerKeypair.publicKey,
         creator: creator.publicKey,
-        ownedToken: ownedTokenPda,
+        xyberToken: ownedTokenPda,
         escrowPda,
         mint: mintKeypair.publicKey,
         userTokenAccount: buyerTokenAccount,
@@ -437,7 +452,7 @@ describe("Bonding Curve (Lamports) Test (multi-step with all asserts)", () => {
     });
 
     console.log("Buyer ATA info AFTER (raw):", buyerAtaInfoAfter);
-    const ownedTokenDataAfter = await program.account.ownedToken.fetch(ownedTokenPda);
+    const ownedTokenDataAfter = await program.account.xyberToken.fetch(ownedTokenPda);
     const supplyAfter = ownedTokenDataAfter.supply;
 
     console.log("Supply AFTER (curve units):", supplyAfter.toString());

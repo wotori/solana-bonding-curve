@@ -7,7 +7,7 @@ use anchor_spl::token::{self, Mint, MintTo, Token, TokenAccount};
 
 use crate::curves::traits::BondingCurveTrait;
 use crate::errors::CustomError;
-use crate::{omni_params, OwnedToken};
+use crate::{xyber_params, XyberToken};
 
 // ------------------------------------------------------------------------
 // BuyToken
@@ -27,15 +27,15 @@ pub struct BuyToken<'info> {
 
     #[account(
         mut,
-        seeds = [b"omni_token", creator.key().as_ref(), token_seed.key().as_ref()],
+        seeds = [b"xyber_token", creator.key().as_ref(), token_seed.key().as_ref()],
         bump
     )]
-    pub omni_token: Account<'info, OwnedToken>,
+    pub xyber_token: Account<'info, XyberToken>,
 
     #[account(
         mut,
         seeds = [b"escrow", creator.key().as_ref(), token_seed.key().as_ref()],
-        bump = omni_token.escrow_bump,
+        bump = xyber_token.escrow_bump,
         owner = system_program::ID
     )]
     /// CHECK: Escrow for SOL
@@ -65,10 +65,10 @@ pub struct BuyToken<'info> {
 pub fn buy_exact_input_instruction(ctx: Context<BuyToken>, base_token: u64) -> Result<()> {
     // 1) Use the bonding curve to find out how many tokens get minted from `base_token`.
     let tokens_u128 = {
-        let omni_token = &mut ctx.accounts.omni_token;
-        let tokens_u128 = omni_token.bonding_curve.buy_exact_input(base_token);
+        let xyber_token = &mut ctx.accounts.xyber_token;
+        let tokens_u128 = xyber_token.bonding_curve.buy_exact_input(base_token);
         require!(
-            tokens_u128 as u64 <= omni_token.supply,
+            tokens_u128 as u64 <= xyber_token.supply,
             CustomError::InsufficientTokenSupply
         );
         tokens_u128
@@ -85,11 +85,11 @@ pub fn buy_exact_input_instruction(ctx: Context<BuyToken>, base_token: u64) -> R
     system_program::transfer(cpi_ctx, base_token)?;
 
     // 3) Mint tokens to the buyer
-    let bump = ctx.bumps.omni_token;
+    let bump = ctx.bumps.xyber_token;
     let creator_key = ctx.accounts.creator.key();
     let token_seed_key = ctx.accounts.token_seed.key();
     let signer_seeds = &[
-        b"omni_token".as_ref(),
+        b"xyber_token".as_ref(),
         creator_key.as_ref(),
         token_seed_key.as_ref(),
         &[bump],
@@ -97,7 +97,7 @@ pub fn buy_exact_input_instruction(ctx: Context<BuyToken>, base_token: u64) -> R
 
     require!(tokens_u128 <= u64::MAX, CustomError::MathOverflow);
     let raw_tokens_u64 = tokens_u128 as u64;
-    let minted_tokens_u64 = raw_tokens_u64 * 10_u64.pow(omni_params::DECIMALS as u32);
+    let minted_tokens_u64 = raw_tokens_u64 * 10_u64.pow(xyber_params::DECIMALS as u32);
 
     token::mint_to(
         CpiContext::new_with_signer(
@@ -105,7 +105,7 @@ pub fn buy_exact_input_instruction(ctx: Context<BuyToken>, base_token: u64) -> R
             MintTo {
                 mint: ctx.accounts.mint.to_account_info(),
                 to: ctx.accounts.buyer_token_account.to_account_info(),
-                authority: ctx.accounts.omni_token.to_account_info(),
+                authority: ctx.accounts.xyber_token.to_account_info(),
             },
             &[signer_seeds],
         ),
@@ -113,8 +113,8 @@ pub fn buy_exact_input_instruction(ctx: Context<BuyToken>, base_token: u64) -> R
     )?;
 
     // 4) Update token supply
-    let omni_token = &mut ctx.accounts.omni_token;
-    omni_token.supply = omni_token
+    let xyber_token = &mut ctx.accounts.xyber_token;
+    xyber_token.supply = xyber_token
         .supply
         .checked_sub(raw_tokens_u64)
         .ok_or(CustomError::MathOverflow)?;
@@ -127,17 +127,17 @@ pub fn buy_exact_input_instruction(ctx: Context<BuyToken>, base_token: u64) -> R
 pub fn buy_exact_output_instruction(ctx: Context<BuyToken>, tokens_out: u64) -> Result<()> {
     // 1) Ensure we can fulfill the token request from the current supply
     {
-        let omni_token = &mut ctx.accounts.omni_token;
+        let xyber_token = &mut ctx.accounts.xyber_token;
         require!(
-            tokens_out <= omni_token.supply,
+            tokens_out <= xyber_token.supply,
             CustomError::InsufficientTokenSupply
         );
     }
 
     // 2) Compute how many base_token are required using buy_exact_output
     let base_token_required = {
-        let omni_token = &mut ctx.accounts.omni_token;
-        let base_token_u64 = omni_token.bonding_curve.buy_exact_output(tokens_out);
+        let xyber_token = &mut ctx.accounts.xyber_token;
+        let base_token_u64 = xyber_token.bonding_curve.buy_exact_output(tokens_out);
         base_token_u64
     };
 
@@ -152,18 +152,18 @@ pub fn buy_exact_output_instruction(ctx: Context<BuyToken>, tokens_out: u64) -> 
     system_program::transfer(cpi_ctx, base_token_required)?;
 
     // 4) Mint exactly `tokens_out` raw tokens (convert with decimals)
-    let bump = ctx.bumps.omni_token;
+    let bump = ctx.bumps.xyber_token;
     let creator_key = ctx.accounts.creator.key();
     let token_seed_key = ctx.accounts.token_seed.key();
     let signer_seeds = &[
-        b"omni_token".as_ref(),
+        b"xyber_token".as_ref(),
         creator_key.as_ref(),
         token_seed_key.as_ref(),
         &[bump],
     ];
 
     let minted_tokens_u64 = tokens_out
-        .checked_mul(10_u64.pow(omni_params::DECIMALS as u32))
+        .checked_mul(10_u64.pow(xyber_params::DECIMALS as u32))
         .ok_or(CustomError::MathOverflow)?;
 
     token::mint_to(
@@ -172,7 +172,7 @@ pub fn buy_exact_output_instruction(ctx: Context<BuyToken>, tokens_out: u64) -> 
             MintTo {
                 mint: ctx.accounts.mint.to_account_info(),
                 to: ctx.accounts.buyer_token_account.to_account_info(),
-                authority: ctx.accounts.omni_token.to_account_info(),
+                authority: ctx.accounts.xyber_token.to_account_info(),
             },
             &[signer_seeds],
         ),
@@ -180,8 +180,8 @@ pub fn buy_exact_output_instruction(ctx: Context<BuyToken>, tokens_out: u64) -> 
     )?;
 
     // 5) Update token supply
-    let omni_token = &mut ctx.accounts.omni_token;
-    omni_token.supply = omni_token
+    let xyber_token = &mut ctx.accounts.xyber_token;
+    xyber_token.supply = xyber_token
         .supply
         .checked_sub(tokens_out)
         .ok_or(CustomError::MathOverflow)?;

@@ -1,6 +1,6 @@
 use anchor_lang::{prelude::*, solana_program::system_program};
 
-use crate::OwnedToken;
+use crate::XyberToken;
 
 #[derive(Accounts)]
 pub struct InitEscrow<'info> {
@@ -13,10 +13,10 @@ pub struct InitEscrow<'info> {
 
     #[account(
         mut,
-        seeds = [b"omni_token", creator.key().as_ref(), token_seed.key().as_ref()],
+        seeds = [b"xyber_token", creator.key().as_ref(), token_seed.key().as_ref()],
         bump
     )]
-    pub omni_token: Account<'info, OwnedToken>,
+    pub xyber_token: Account<'info, XyberToken>,
 
     #[account(
         init,
@@ -36,8 +36,8 @@ pub struct InitEscrow<'info> {
 }
 
 pub fn init_escrow_instruction(ctx: Context<InitEscrow>) -> Result<()> {
-    let omni_token = &mut ctx.accounts.omni_token;
-    omni_token.escrow_pda = ctx.accounts.escrow_pda.key();
-    omni_token.escrow_bump = ctx.bumps.escrow_pda;
+    let xyber_token = &mut ctx.accounts.xyber_token;
+    xyber_token.escrow_pda = ctx.accounts.escrow_pda.key();
+    xyber_token.escrow_bump = ctx.bumps.escrow_pda;
     Ok(())
 }

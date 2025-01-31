@@ -5,8 +5,8 @@ use anchor_spl::token::{self, Mint, MintTo, Token, TokenAccount};
 
 use crate::curves::traits::BondingCurveTrait;
 use crate::errors::CustomError;
-use crate::omni_params;
-use crate::OwnedToken;
+use crate::xyber_params;
+use crate::XyberToken;
 
 // ------------------------------------------------------------------------
 // (3) MintInitialTokens
@@ -23,15 +23,15 @@ pub struct MintInitialTokens<'info> {
 
     #[account(
         mut,
-        seeds = [b"omni_token", creator.key().as_ref(), token_seed.key().as_ref()],
+        seeds = [b"xyber_token", creator.key().as_ref(), token_seed.key().as_ref()],
         bump
     )]
-    pub omni_token: Account<'info, OwnedToken>,
+    pub xyber_token: Account<'info, XyberToken>,
 
     #[account(
         mut,
         seeds = [b"escrow", creator.key().as_ref(), token_seed.key().as_ref()],
-        bump = omni_token.escrow_bump,
+        bump = xyber_token.escrow_bump,
         owner = system_program::ID
     )]
     /// CHECK: Escrow for SOL
@@ -95,7 +95,7 @@ pub fn mint_initial_tokens_instruction(
     msg!("DEBUG: Calling buy_exact_input() in the bonding curve...");
     let minted_tokens_u128 = ctx
         .accounts
-        .omni_token
+        .xyber_token
         .bonding_curve
         .buy_exact_input(deposit_lamports);
 
@@ -115,7 +115,7 @@ pub fn mint_initial_tokens_instruction(
     // --------------------------------------------------------------------
     // 3) Mint these tokens to the creator's ATA
     // --------------------------------------------------------------------
-    let bump = ctx.bumps.omni_token;
+    let bump = ctx.bumps.xyber_token;
     let creator_key = ctx.accounts.creator.key();
     let token_seed_key = ctx.accounts.token_seed.key();
 
@@ -124,20 +124,20 @@ pub fn mint_initial_tokens_instruction(
     msg!("DEBUG: Token Seed Pubkey = {}", token_seed_key);
 
     let signer_seeds = &[
-        b"omni_token".as_ref(),
+        b"xyber_token".as_ref(),
         creator_key.as_ref(),
         token_seed_key.as_ref(),
         &[bump],
     ];
 
-    let minted_tokens_u64 = human_readable_tokens * 10_u64.pow(omni_params::DECIMALS as u32);
+    let minted_tokens_u64 = human_readable_tokens * 10_u64.pow(xyber_params::DECIMALS as u32);
     token::mint_to(
         CpiContext::new_with_signer(
             ctx.accounts.token_program.to_account_info(),
             MintTo {
                 mint: ctx.accounts.mint.to_account_info(),
                 to: ctx.accounts.creator_token_account.to_account_info(),
-                authority: ctx.accounts.omni_token.to_account_info(),
+                authority: ctx.accounts.xyber_token.to_account_info(),
             },
             &[signer_seeds],
         ),
@@ -148,12 +148,12 @@ pub fn mint_initial_tokens_instruction(
     // --------------------------------------------------------------------
     // 4) Reduce supply
     // --------------------------------------------------------------------
-    let omni_token = &mut ctx.accounts.omni_token;
-    omni_token.supply = omni_token
+    let xyber_token = &mut ctx.accounts.xyber_token;
+    xyber_token.supply = xyber_token
         .supply
         .checked_sub(human_readable_tokens)
         .ok_or(CustomError::MathOverflow)?;
-    msg!("DEBUG: omni_token.supply AFTER sub={}", omni_token.supply);
+    msg!("DEBUG: xyber_token.supply AFTER sub={}", xyber_token.supply);
 
     msg!("DEBUG: Instruction complete. Returning Ok(()).");
     Ok(())

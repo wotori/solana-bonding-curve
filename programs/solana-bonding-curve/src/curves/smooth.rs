@@ -11,11 +11,11 @@ use anchor_lang::prelude::*;
 #[derive(AnchorSerialize, AnchorDeserialize, Debug, Clone)]
 pub struct SmoothBondingCurve {
     /// Asymptotic total token supply (in "raw" tokens)
-    pub a: u64,
+    pub a_total_tokens: u64,
     /// Controls how quickly we approach A (token * lamport)
-    pub k: u128,
+    pub k_virtual_pool_offset: u128,
     /// Virtual pool offset (in base_tokens)
-    pub c: u64,
+    pub c_bonding_scale_factor: u64,
     /// Total base asset deposited (in base_tokens)
     pub x: u64,
 }
@@ -24,9 +24,9 @@ impl SmoothBondingCurve {
     /// Calculates the total minted tokens at `x_val` base_tokens in the pool:
     /// y(x) = A - (K / (C + x))   (all integer math)
     fn y_of_x(&self, x_val: u64) -> u64 {
-        let denom = (self.c).saturating_add(x_val);
-        let k_over_denom = self.k.saturating_div(denom as u128);
-        (self.a).saturating_sub(k_over_denom as u64)
+        let denom = (self.c_bonding_scale_factor).saturating_add(x_val);
+        let k_over_denom = self.k_virtual_pool_offset.saturating_div(denom as u128);
+        (self.a_total_tokens).saturating_sub(k_over_denom as u64)
     }
 
     /// Computes the `x` (new_x) for a target y = new_y.
@@ -38,24 +38,24 @@ impl SmoothBondingCurve {
     ///
     /// *Panics* if new_y >= A or if (C + x') < C (underflow).
     fn solve_for_x_prime(&self, new_y: u128) -> u128 {
-        if new_y >= self.a as u128 {
+        if new_y >= self.a_total_tokens as u128 {
             panic!("Requested new_y exceeds or equals the asymptote A");
         }
-        let a_minus_new_y = (self.a as u128)
+        let a_minus_new_y = (self.a_total_tokens as u128)
             .checked_sub(new_y)
             .expect("new_y too large, exceeds curve's max supply");
 
         let big_val = self
-            .k
+            .k_virtual_pool_offset
             .checked_div(a_minus_new_y)
             .expect("Division by zero or K too small");
 
-        if big_val < self.c as u128 {
+        if big_val < self.c_bonding_scale_factor as u128 {
             panic!("Curve underflow: (C + x') < C");
         }
 
         big_val
-            .checked_sub(self.c as u128)
+            .checked_sub(self.c_bonding_scale_factor as u128)
             .expect("Internal underflow computing x'")
     }
 }
@@ -126,15 +126,15 @@ impl BondingCurveTrait for SmoothBondingCurve {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::omni_params;
+    use crate::xyber_params;
     use anchor_lang::solana_program::native_token::LAMPORTS_PER_SOL;
 
     #[test]
     fn test_buy_exact_input() {
         let mut curve = SmoothBondingCurve {
-            a: omni_params::TOTAL_TOKENS,
-            k: omni_params::BONDING_SCALE_FACTOR,
-            c: omni_params::VIRTUAL_POOL_OFFSET,
+            a_total_tokens: xyber_params::_TOTAL_TOKENS,
+            k_virtual_pool_offset: xyber_params::_BONDING_SCALE_FACTOR,
+            c_bonding_scale_factor: xyber_params::_VIRTUAL_POOL_OFFSET,
             x: 0,
         };
 
@@ -152,9 +152,9 @@ mod tests {
     #[test]
     fn test_buy_exact_output() {
         let mut curve = SmoothBondingCurve {
-            a: omni_params::TOTAL_TOKENS,
-            k: omni_params::BONDING_SCALE_FACTOR,
-            c: omni_params::VIRTUAL_POOL_OFFSET,
+            a_total_tokens: xyber_params::_TOTAL_TOKENS,
+            k_virtual_pool_offset: xyber_params::_BONDING_SCALE_FACTOR,
+            c_bonding_scale_factor: xyber_params::_VIRTUAL_POOL_OFFSET,
             x: 0,
         };
 
@@ -194,9 +194,9 @@ mod tests {
 
         for fraction in fractions {
             let mut curve = SmoothBondingCurve {
-                a: omni_params::TOTAL_TOKENS,
-                k: omni_params::BONDING_SCALE_FACTOR,
-                c: omni_params::VIRTUAL_POOL_OFFSET,
+                a_total_tokens: xyber_params::_TOTAL_TOKENS,
+                k_virtual_pool_offset: xyber_params::_BONDING_SCALE_FACTOR,
+                c_bonding_scale_factor: xyber_params::_VIRTUAL_POOL_OFFSET,
                 x: 0,
             };
 
@@ -226,9 +226,9 @@ mod tests {
     #[test]
     fn test_sell_exact_input() {
         let mut curve = SmoothBondingCurve {
-            a: omni_params::TOTAL_TOKENS,
-            k: omni_params::BONDING_SCALE_FACTOR,
-            c: omni_params::VIRTUAL_POOL_OFFSET,
+            a_total_tokens: xyber_params::_TOTAL_TOKENS,
+            k_virtual_pool_offset: xyber_params::_BONDING_SCALE_FACTOR,
+            c_bonding_scale_factor: xyber_params::_VIRTUAL_POOL_OFFSET,
             x: 0,
         };
 
@@ -250,9 +250,9 @@ mod tests {
     #[test]
     fn test_sell_exact_output() {
         let mut curve = SmoothBondingCurve {
-            a: omni_params::TOTAL_TOKENS,
-            k: omni_params::BONDING_SCALE_FACTOR,
-            c: omni_params::VIRTUAL_POOL_OFFSET,
+            a_total_tokens: xyber_params::_TOTAL_TOKENS,
+            k_virtual_pool_offset: xyber_params::_BONDING_SCALE_FACTOR,
+            c_bonding_scale_factor: xyber_params::_VIRTUAL_POOL_OFFSET,
             x: 0,
         };
 
@@ -292,9 +292,9 @@ mod tests {
 
         // (A) Buy Exact Input -> Sell Exact Input
         let mut curve = SmoothBondingCurve {
-            a: omni_params::TOTAL_TOKENS,
-            k: omni_params::BONDING_SCALE_FACTOR,
-            c: omni_params::VIRTUAL_POOL_OFFSET,
+            a_total_tokens: xyber_params::_TOTAL_TOKENS,
+            k_virtual_pool_offset: xyber_params::_BONDING_SCALE_FACTOR,
+            c_bonding_scale_factor: xyber_params::_VIRTUAL_POOL_OFFSET,
             x: 0,
         };
         let lamports_in_a: u64 = 2 * LAMPORTS_PER_SOL; // Purchasing with 2 SOL
@@ -322,9 +322,9 @@ mod tests {
 
         // (B) Buy Exact Output -> Sell Exact Input
         let mut curve2 = SmoothBondingCurve {
-            a: omni_params::TOTAL_TOKENS,
-            k: omni_params::BONDING_SCALE_FACTOR,
-            c: omni_params::VIRTUAL_POOL_OFFSET,
+            a_total_tokens: xyber_params::_TOTAL_TOKENS,
+            k_virtual_pool_offset: xyber_params::_BONDING_SCALE_FACTOR,
+            c_bonding_scale_factor: xyber_params::_VIRTUAL_POOL_OFFSET,
             x: 0,
         };
         let tokens_out_b = 50_000;
@@ -353,8 +353,8 @@ mod tests {
 
     /// Estimates the marginal price (dX/dY) in float, used for logging/tracing price growth.
     fn approximate_price(curve: &SmoothBondingCurve) -> f64 {
-        let denom = (curve.c as f64) + (curve.x as f64);
-        let k = curve.k as f64;
+        let denom = (curve.c_bonding_scale_factor as f64) + (curve.x as f64);
+        let k = curve.k_virtual_pool_offset as f64;
         // For y(x) = A - (K / (C + x)), the local slope dX/dY is:
         //     dX/dY = (C + x)^2 / K
         (denom * denom) / k
@@ -363,9 +363,9 @@ mod tests {
     #[test]
     fn test_buy_until_70k_liquidity() {
         let mut curve = SmoothBondingCurve {
-            a: omni_params::TOTAL_TOKENS,
-            k: omni_params::BONDING_SCALE_FACTOR,
-            c: omni_params::VIRTUAL_POOL_OFFSET,
+            a_total_tokens: xyber_params::_TOTAL_TOKENS,
+            k_virtual_pool_offset: xyber_params::_BONDING_SCALE_FACTOR,
+            c_bonding_scale_factor: xyber_params::_VIRTUAL_POOL_OFFSET,
             x: 0,
         };
 

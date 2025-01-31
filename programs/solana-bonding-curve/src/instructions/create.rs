@@ -5,9 +5,11 @@ use anchor_spl::associated_token::AssociatedToken;
 use anchor_spl::token::{Mint, Token, TokenAccount};
 
 use crate::curves::SmoothBondingCurve;
-use crate::{omni_params, OwnedToken};
+use crate::xyber_params::CreateTokenParams;
+use crate::{xyber_params, XyberToken};
 
 #[derive(Accounts)]
+#[instruction(params: CreateTokenParams)]
 pub struct CreateToken<'info> {
     /// CHECK: arbitrary seed
     #[account()]
@@ -19,17 +21,17 @@ pub struct CreateToken<'info> {
     #[account(
         init,
         payer = creator,
-        seeds = [b"omni_token", creator.key().as_ref(), token_seed.key().as_ref()],
+        seeds = [b"xyber_token", creator.key().as_ref(), token_seed.key().as_ref()],
         bump,
-        space = OwnedToken::LEN
+        space = XyberToken::LEN
     )]
-    pub omni_token: Account<'info, OwnedToken>,
+    pub xyber_token: Account<'info, XyberToken>,
 
     #[account(
         init,
         payer = creator,
-        mint::decimals = omni_params::DECIMALS,
-        mint::authority = omni_token
+        mint::decimals = xyber_params::DECIMALS,
+        mint::authority = xyber_token
     )]
     pub mint: Account<'info, Mint>,
 
@@ -56,16 +58,23 @@ pub struct CreateToken<'info> {
     pub system_program: UncheckedAccount<'info>,
 }
 
-pub fn create_token_instruction(ctx: Context<CreateToken>) -> Result<()> {
-    let omni_token = &mut ctx.accounts.omni_token;
-    omni_token.supply = omni_params::TOTAL_TOKENS;
+pub fn create_token_instruction(
+    ctx: Context<CreateToken>,
+    params: CreateTokenParams,
+) -> Result<()> {
+    let xyber_token = &mut ctx.accounts.xyber_token;
 
-    omni_token.bonding_curve = SmoothBondingCurve {
-        a: omni_params::TOTAL_TOKENS,
-        k: omni_params::BONDING_SCALE_FACTOR,
-        c: omni_params::VIRTUAL_POOL_OFFSET,
+    xyber_token.supply = params.token_supply;
+    xyber_token.grad_threshold = params.token_grad_thr_usd;
+
+    xyber_token.bonding_curve = SmoothBondingCurve {
+        a_total_tokens: params.bonding_curve.a_total_tokens,
+        c_bonding_scale_factor: params.bonding_curve.c_bonding_scale_factor,
+        k_virtual_pool_offset: params.bonding_curve.k_virtual_pool_offset,
         x: 0,
     };
+
+    xyber_token.accepted_base_mint = params.accepted_base_mint;
 
     Ok(())
 }

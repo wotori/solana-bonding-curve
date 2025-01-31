@@ -6,7 +6,7 @@ use anchor_spl::token::{self, Burn, Mint, Token, TokenAccount};
 
 use crate::curves::traits::BondingCurveTrait;
 use crate::errors::CustomError;
-use crate::{omni_params, OwnedToken};
+use crate::{xyber_params, XyberToken};
 
 // ------------------------------------------------------------------------
 // SellToken
@@ -26,15 +26,15 @@ pub struct SellToken<'info> {
 
     #[account(
         mut,
-        seeds = [b"omni_token", creator.key().as_ref(), token_seed.key().as_ref()],
+        seeds = [b"xyber_token", creator.key().as_ref(), token_seed.key().as_ref()],
         bump
     )]
-    pub omni_token: Account<'info, OwnedToken>,
+    pub xyber_token: Account<'info, XyberToken>,
 
     #[account(
         mut,
         seeds = [b"escrow", creator.key().as_ref(), token_seed.key().as_ref()],
-        bump = omni_token.escrow_bump,
+        bump = xyber_token.escrow_bump,
         owner = system_program::ID
     )]
     /// CHECK: escrow for SOL
@@ -73,7 +73,7 @@ pub fn sell_exact_input_instruction(
     );
 
     let tokens_to_burn = normalized_omni_token_amount
-        .checked_mul(10_u64.pow(omni_params::DECIMALS as u32))
+        .checked_mul(10_u64.pow(xyber_params::DECIMALS as u32))
         .ok_or(CustomError::MathOverflow)?;
 
     token::burn(cpi_ctx, tokens_to_burn)?;
@@ -81,15 +81,15 @@ pub fn sell_exact_input_instruction(
     // --------------------------------------------------------------------
     // 2) Calculate how much SOL to return
     // --------------------------------------------------------------------
-    let omni_token = &mut ctx.accounts.omni_token;
-    let base_token = omni_token
+    let xyber_token = &mut ctx.accounts.xyber_token;
+    let base_token = xyber_token
         .bonding_curve
         .sell_exact_input(normalized_omni_token_amount);
 
     // --------------------------------------------------------------------
     // 3) Transfer SOL from escrow -> user
     // --------------------------------------------------------------------
-    let bump = omni_token.escrow_bump;
+    let bump = xyber_token.escrow_bump;
     let creator_key = ctx.accounts.creator.key();
     let token_seed_key = ctx.accounts.token_seed.key();
 
@@ -118,7 +118,7 @@ pub fn sell_exact_input_instruction(
     // --------------------------------------------------------------------
     // 4) Increase supply
     // --------------------------------------------------------------------
-    omni_token.supply = omni_token
+    xyber_token.supply = xyber_token
         .supply
         .checked_add(normalized_omni_token_amount)
         .ok_or(CustomError::MathOverflow)?;
@@ -133,14 +133,14 @@ pub fn sell_exact_output_instruction(
     // --------------------------------------------------------------------
     // 1) Determine how many tokens need to be burned
     // --------------------------------------------------------------------
-    let omni_token = &mut ctx.accounts.omni_token;
-    let tokens_to_burn = omni_token
+    let xyber_token = &mut ctx.accounts.xyber_token;
+    let tokens_to_burn = xyber_token
         .bonding_curve
         .sell_exact_output(base_token_requested);
 
     // Convert to raw token amount with decimals
     let raw_burn_amount = tokens_to_burn
-        .checked_mul(10u64.pow(omni_params::DECIMALS as u32))
+        .checked_mul(10u64.pow(xyber_params::DECIMALS as u32))
         .ok_or(CustomError::MathOverflow)?;
 
     // --------------------------------------------------------------------
@@ -160,7 +160,7 @@ pub fn sell_exact_output_instruction(
     // --------------------------------------------------------------------
     // 3) Transfer the exact lamports to the user
     // --------------------------------------------------------------------
-    let bump = omni_token.escrow_bump;
+    let bump = xyber_token.escrow_bump;
     let creator_key = ctx.accounts.creator.key();
     let token_seed_key = ctx.accounts.token_seed.key();
 
@@ -188,9 +188,9 @@ pub fn sell_exact_output_instruction(
     )?;
 
     // --------------------------------------------------------------------
-    // 4) Increase the supply on the OwnedToken
+    // 4) Increase the supply on the XyberToken
     // --------------------------------------------------------------------
-    omni_token.supply = omni_token
+    xyber_token.supply = xyber_token
         .supply
         .checked_add(tokens_to_burn as u64)
         .ok_or(CustomError::MathOverflow)?;
