@@ -19,17 +19,17 @@ pub struct CreateToken<'info> {
     #[account(
         init,
         payer = creator,
-        seeds = [b"owned_token", creator.key().as_ref(), token_seed.key().as_ref()],
+        seeds = [b"omni_token", creator.key().as_ref(), token_seed.key().as_ref()],
         bump,
         space = OwnedToken::LEN
     )]
-    pub owned_token: Account<'info, OwnedToken>,
+    pub omni_token: Account<'info, OwnedToken>,
 
     #[account(
         init,
         payer = creator,
         mint::decimals = omni_params::DECIMALS,
-        mint::authority = owned_token
+        mint::authority = omni_token
     )]
     pub mint: Account<'info, Mint>,
 
@@ -57,10 +57,10 @@ pub struct CreateToken<'info> {
 }
 
 pub fn create_token_instruction(ctx: Context<CreateToken>) -> Result<()> {
-    let owned_token = &mut ctx.accounts.owned_token;
-    owned_token.supply = 1_073_000_191;
+    let omni_token = &mut ctx.accounts.omni_token;
+    omni_token.supply = omni_params::TOTAL_TOKENS;
 
-    owned_token.bonding_curve = SmoothBondingCurve {
+    omni_token.bonding_curve = SmoothBondingCurve {
         a: omni_params::TOTAL_TOKENS,
         k: omni_params::BONDING_SCALE_FACTOR,
         c: omni_params::VIRTUAL_POOL_OFFSET,

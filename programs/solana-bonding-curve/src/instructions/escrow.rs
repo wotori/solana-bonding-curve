@@ -13,10 +13,10 @@ pub struct InitEscrow<'info> {
 
     #[account(
         mut,
-        seeds = [b"owned_token", creator.key().as_ref(), token_seed.key().as_ref()],
+        seeds = [b"omni_token", creator.key().as_ref(), token_seed.key().as_ref()],
         bump
     )]
-    pub owned_token: Account<'info, OwnedToken>,
+    pub omni_token: Account<'info, OwnedToken>,
 
     #[account(
         init,
@@ -36,8 +36,8 @@ pub struct InitEscrow<'info> {
 }
 
 pub fn init_escrow_instruction(ctx: Context<InitEscrow>) -> Result<()> {
-    let owned_token = &mut ctx.accounts.owned_token;
-    owned_token.escrow_pda = ctx.accounts.escrow_pda.key();
-    owned_token.escrow_bump = ctx.bumps.escrow_pda;
+    let omni_token = &mut ctx.accounts.omni_token;
+    omni_token.escrow_pda = ctx.accounts.escrow_pda.key();
+    omni_token.escrow_bump = ctx.bumps.escrow_pda;
     Ok(())
 }

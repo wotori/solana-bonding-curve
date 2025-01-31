@@ -22,10 +22,10 @@ pub struct SetMetadata<'info> {
 
     #[account(
         mut,
-        seeds = [b"owned_token", creator.key().as_ref(), token_seed.key().as_ref()],
+        seeds = [b"omni_token", creator.key().as_ref(), token_seed.key().as_ref()],
         bump
     )]
-    pub owned_token: Account<'info, OwnedToken>,
+    pub omni_token: Account<'info, OwnedToken>,
 
     /// CHECK: The mint
     #[account(mut)]
@@ -62,7 +62,7 @@ pub fn set_metadata_instruction(
         metadata: ctx.accounts.metadata.key(),
         master_edition: None,
         mint: (ctx.accounts.mint.key(), false),
-        authority: ctx.accounts.owned_token.key(),
+        authority: ctx.accounts.omni_token.key(),
         payer: ctx.accounts.creator.key(),
         update_authority: (ctx.accounts.creator.key(), true),
         system_program: system_program::ID,
@@ -89,11 +89,11 @@ pub fn set_metadata_instruction(
 
     let ix = create_v1.instruction(args);
 
-    let bump = ctx.bumps.owned_token;
+    let bump = ctx.bumps.omni_token;
     let creator_key = ctx.accounts.creator.key();
     let token_seed_key = ctx.accounts.token_seed.key();
     let signer_seeds = &[
-        b"owned_token".as_ref(),
+        b"omni_token".as_ref(),
         creator_key.as_ref(),
         token_seed_key.as_ref(),
         &[bump],
@@ -105,7 +105,7 @@ pub fn set_metadata_instruction(
             ctx.accounts.token_metadata_program.to_account_info(),
             ctx.accounts.metadata.to_account_info(),
             ctx.accounts.mint.to_account_info(),
-            ctx.accounts.owned_token.to_account_info(),
+            ctx.accounts.omni_token.to_account_info(),
             ctx.accounts.creator.to_account_info(),
             ctx.accounts.system_program.to_account_info(),
             ctx.accounts.sysvar_instructions.to_account_info(),

@@ -23,10 +23,10 @@ pub struct SmoothBondingCurve {
 impl SmoothBondingCurve {
     /// Calculates the total minted tokens at `x_val` base_tokens in the pool:
     /// y(x) = A - (K / (C + x))   (all integer math)
-    fn y_of_x(&self, x_val: u64) -> u128 {
-        let denom = (self.c as u128).saturating_add(x_val as u128);
-        let k_over_denom = self.k.saturating_div(denom);
-        (self.a as u128).saturating_sub(k_over_denom)
+    fn y_of_x(&self, x_val: u64) -> u64 {
+        let denom = (self.c).saturating_add(x_val);
+        let k_over_denom = self.k.saturating_div(denom as u128);
+        (self.a).saturating_sub(k_over_denom as u64)
     }
 
     /// Computes the `x` (new_x) for a target y = new_y.
@@ -62,24 +62,24 @@ impl SmoothBondingCurve {
 
 impl BondingCurveTrait for SmoothBondingCurve {
     /// Buys with exact base_tokens in, returning the exact number of minted tokens (Δy).
-    fn buy_exact_input(&mut self, base_in: u64) -> u128 {
+    fn buy_exact_input(&mut self, base_in: u64) -> u64 {
         let old_y = self.y_of_x(self.x);
         let new_x = self.x.saturating_add(base_in);
         let new_y = self.y_of_x(new_x);
         let minted = new_y.saturating_sub(old_y);
 
         self.x = new_x;
-        minted
+        minted as u64
     }
 
     /// Buys an exact number of tokens out (tokens_out), returning the exact base_tokens required.
-    fn buy_exact_output(&mut self, tokens_out: u128) -> u64 {
+    fn buy_exact_output(&mut self, tokens_out: u64) -> u64 {
         let old_y = self.y_of_x(self.x);
         let new_y = old_y
             .checked_add(tokens_out)
             .expect("Cannot buy a negative amount or overflow tokens");
 
-        let x_prime = self.solve_for_x_prime(new_y);
+        let x_prime = self.solve_for_x_prime(new_y as u128);
         let base_in = x_prime
             .checked_sub(self.x as u128)
             .expect("Not enough base_tokens to buy these tokens");
@@ -89,13 +89,13 @@ impl BondingCurveTrait for SmoothBondingCurve {
     }
 
     /// Sells an exact number of tokens in, returning the exact base_tokens out.
-    fn sell_exact_input(&mut self, tokens_in: u128) -> u64 {
+    fn sell_exact_input(&mut self, tokens_in: u64) -> u64 {
         let old_y = self.y_of_x(self.x);
         let new_y = old_y
             .checked_sub(tokens_in)
             .expect("Cannot sell more tokens than curve state holds");
 
-        let x_prime = self.solve_for_x_prime(new_y);
+        let x_prime = self.solve_for_x_prime(new_y as u128);
         let base_out = (self.x as u128)
             .checked_sub(x_prime)
             .expect("logic error: x' is larger than old_x");
@@ -105,21 +105,21 @@ impl BondingCurveTrait for SmoothBondingCurve {
     }
 
     /// Sells enough tokens to receive exactly `base_out` from the curve.
-    fn sell_exact_output(&mut self, base_out: u128) -> u64 {
-        let old_x = self.x as u128;
+    /// Returns the number of "pool tokens" that must be burned (`tokens_in`).
+    fn sell_exact_output(&mut self, base_out: u64) -> u64 {
+        let old_x = self.x;
+        let old_y = self.y_of_x(old_x);
 
-        // Safety check: Make sure the pool has enough base_tokens
-        if base_out as u128 > old_x {
+        if base_out as u128 > old_x as u128 {
             panic!("Not enough base_tokens in the pool to withdraw this amount");
         }
 
-        // new_x = old_x - base_out
-        let new_x = old_x - base_out as u128;
+        let new_x = old_x as u128 - base_out as u128;
+        let new_y = self.y_of_x(new_x as u64);
 
-        // Update the pool’s deposit
+        let tokens_to_burn = old_y.saturating_sub(new_y);
         self.x = new_x as u64;
-
-        base_out as u64
+        tokens_to_burn as u64
     }
 }
 
@@ -158,7 +158,7 @@ mod tests {
             x: 0,
         };
 
-        let tokens_out = 10_000_u128;
+        let tokens_out = 10_000;
 
         println!("Initial curve state: {:?}", curve);
         println!("Tokens to buy: {}", tokens_out);
@@ -201,7 +201,7 @@ mod tests {
             };
 
             let lamports_in = (LAMPORTS_PER_SOL as f64 * fraction) as u64;
-            let minted = curve.buy_exact_input(lamports_in);
+            let minted = curve.buy_exact_input(lamports_in) as u64;
 
             println!(
                 "fraction = {:.4}, lamports_in = {}, minted = {}",
@@ -216,10 +216,10 @@ mod tests {
 
             // Ensure monotonic decrease in minted tokens as fraction decreases
             assert!(
-                minted <= prev_minted,
+                minted <= prev_minted as u64,
                 "Expected minted tokens to decrease as fraction decreases"
             );
-            prev_minted = minted;
+            prev_minted = minted as u128;
         }
     }
 
@@ -249,7 +249,6 @@ mod tests {
 
     #[test]
     fn test_sell_exact_output() {
-        // Initialize the curve
         let mut curve = SmoothBondingCurve {
             a: omni_params::TOTAL_TOKENS,
             k: omni_params::BONDING_SCALE_FACTOR,
@@ -257,40 +256,33 @@ mod tests {
             x: 0,
         };
 
-        // Deposit 0.1 SOL and mint tokens
         let base_in = (0.1 * LAMPORTS_PER_SOL as f64) as u64;
         let minted_tokens = curve.buy_exact_input(base_in);
         assert!(minted_tokens > 0, "Initial token minting failed");
 
-        // Withdraw half of the current base_tokens
         let base_out = curve.x / 2;
-        let lamports_received = curve.sell_exact_output(base_out as u128);
 
-        // The function should return exactly base_out base_tokens
-        assert_eq!(
-            lamports_received, base_out,
-            "Should withdraw the exact base_tokens requested"
-        );
+        let tokens_burned = curve.sell_exact_output(base_out);
 
-        // The pool's base_tokens should decrease by base_out
         let remaining_lamports_in_pool = curve.x;
+        let expected_after_withdraw = base_in - base_out;
         assert_eq!(
-            remaining_lamports_in_pool,
-            base_in - base_out,
-            "Unexpected remaining base_tokens in the pool"
+            remaining_lamports_in_pool, expected_after_withdraw,
+            "Pool's base_tokens did not decrease correctly by base_out"
         );
 
-        // Confirm tokens were burned to free up base_tokens
         let remaining_tokens = curve.y_of_x(curve.x);
-        let tokens_burned = minted_tokens.saturating_sub(remaining_tokens);
-        assert!(
-            tokens_burned > 0,
-            "Should burn tokens to withdraw base_tokens"
+        let real_burn = minted_tokens.saturating_sub(remaining_tokens);
+        assert_eq!(
+            tokens_burned, real_burn,
+            "Mismatch in token burn calculation"
         );
 
         println!(
-            "Requested {} base_tokens, received {}, burned {} tokens, remaining tokens: {}",
-            base_out, lamports_received, tokens_burned, remaining_tokens
+            "Requested {} base tokens, curve granted that amount. 
+             We had to burn {} tokens (by formula). 
+             Now {} minted tokens remain in the curve (y_of_x)",
+            base_out, tokens_burned, remaining_tokens
         );
     }
 
@@ -335,7 +327,7 @@ mod tests {
             c: omni_params::VIRTUAL_POOL_OFFSET,
             x: 0,
         };
-        let tokens_out_b: u128 = 50_000;
+        let tokens_out_b = 50_000;
         let lamports_in_b = curve2.buy_exact_output(tokens_out_b);
         println!(
             "(B) Bought {} tokens (exact output) for {} base_tokens",

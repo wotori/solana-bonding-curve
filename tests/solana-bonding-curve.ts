@@ -70,7 +70,7 @@ describe("Bonding Curve (Lamports) Test (multi-step with all asserts)", () => {
 
     [ownedTokenPda] = PublicKey.findProgramAddressSync(
       [
-        Buffer.from("owned_token"),
+        Buffer.from("omni_token"),
         creator.publicKey.toBuffer(),
         tokenSeedKeypair.publicKey.toBuffer()
       ],
@@ -288,10 +288,6 @@ describe("Bonding Curve (Lamports) Test (multi-step with all asserts)", () => {
 
     ownedTokenDataBefore = ownedTokenDataAfterSell;
   });
-
-  // ================================================================
-  // (4) buyExactOutputInstruction and (5) sellExactOutputInstruction
-  // ================================================================
 
   it("Step 4) Buyer buys EXACT output: requests exactly 10 tokens (buyExactOutputInstruction)", async () => {
     // We'll request 10 'curve units' of tokens (before multiplying by decimals).

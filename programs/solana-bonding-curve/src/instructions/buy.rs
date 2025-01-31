@@ -27,15 +27,15 @@ pub struct BuyToken<'info> {
 
     #[account(
         mut,
-        seeds = [b"owned_token", creator.key().as_ref(), token_seed.key().as_ref()],
+        seeds = [b"omni_token", creator.key().as_ref(), token_seed.key().as_ref()],
         bump
     )]
-    pub owned_token: Account<'info, OwnedToken>,
+    pub omni_token: Account<'info, OwnedToken>,
 
     #[account(
         mut,
         seeds = [b"escrow", creator.key().as_ref(), token_seed.key().as_ref()],
-        bump = owned_token.escrow_bump,
+        bump = omni_token.escrow_bump,
         owner = system_program::ID
     )]
     /// CHECK: Escrow for SOL
@@ -61,20 +61,20 @@ pub struct BuyToken<'info> {
     pub system_program: UncheckedAccount<'info>,
 }
 
-/// (1) Buy tokens by specifying lamports (buy_exact_input).
-pub fn buy_exact_input_instruction(ctx: Context<BuyToken>, lamports: u64) -> Result<()> {
-    // 1) Use the bonding curve to find out how many tokens get minted from `lamports`.
+/// (1) Buy tokens by specifying base_token (buy_exact_input).
+pub fn buy_exact_input_instruction(ctx: Context<BuyToken>, base_token: u64) -> Result<()> {
+    // 1) Use the bonding curve to find out how many tokens get minted from `base_token`.
     let tokens_u128 = {
-        let owned_token = &mut ctx.accounts.owned_token;
-        let tokens_u128 = owned_token.bonding_curve.buy_exact_input(lamports);
+        let omni_token = &mut ctx.accounts.omni_token;
+        let tokens_u128 = omni_token.bonding_curve.buy_exact_input(base_token);
         require!(
-            tokens_u128 as u64 <= owned_token.supply,
+            tokens_u128 as u64 <= omni_token.supply,
             CustomError::InsufficientTokenSupply
         );
         tokens_u128
     };
 
-    // 2) Transfer lamports from buyer -> escrow
+    // 2) Transfer base_token from buyer -> escrow
     let cpi_ctx = CpiContext::new(
         ctx.accounts.system_program.to_account_info(),
         Transfer {
@@ -82,20 +82,20 @@ pub fn buy_exact_input_instruction(ctx: Context<BuyToken>, lamports: u64) -> Res
             to: ctx.accounts.escrow_pda.to_account_info(),
         },
     );
-    system_program::transfer(cpi_ctx, lamports)?;
+    system_program::transfer(cpi_ctx, base_token)?;
 
     // 3) Mint tokens to the buyer
-    let bump = ctx.bumps.owned_token;
+    let bump = ctx.bumps.omni_token;
     let creator_key = ctx.accounts.creator.key();
     let token_seed_key = ctx.accounts.token_seed.key();
     let signer_seeds = &[
-        b"owned_token".as_ref(),
+        b"omni_token".as_ref(),
         creator_key.as_ref(),
         token_seed_key.as_ref(),
         &[bump],
     ];
 
-    require!(tokens_u128 <= u64::MAX as u128, CustomError::MathOverflow);
+    require!(tokens_u128 <= u64::MAX, CustomError::MathOverflow);
     let raw_tokens_u64 = tokens_u128 as u64;
     let minted_tokens_u64 = raw_tokens_u64 * 10_u64.pow(omni_params::DECIMALS as u32);
 
@@ -105,7 +105,7 @@ pub fn buy_exact_input_instruction(ctx: Context<BuyToken>, lamports: u64) -> Res
             MintTo {
                 mint: ctx.accounts.mint.to_account_info(),
                 to: ctx.accounts.buyer_token_account.to_account_info(),
-                authority: ctx.accounts.owned_token.to_account_info(),
+                authority: ctx.accounts.omni_token.to_account_info(),
             },
             &[signer_seeds],
         ),
@@ -113,8 +113,8 @@ pub fn buy_exact_input_instruction(ctx: Context<BuyToken>, lamports: u64) -> Res
     )?;
 
     // 4) Update token supply
-    let owned_token = &mut ctx.accounts.owned_token;
-    owned_token.supply = owned_token
+    let omni_token = &mut ctx.accounts.omni_token;
+    omni_token.supply = omni_token
         .supply
         .checked_sub(raw_tokens_u64)
         .ok_or(CustomError::MathOverflow)?;
@@ -123,27 +123,25 @@ pub fn buy_exact_input_instruction(ctx: Context<BuyToken>, lamports: u64) -> Res
 }
 
 /// (2) Buy tokens by specifying the exact number of tokens desired (buy_exact_output).
-///     This calculates how many lamports are needed to purchase `tokens_out`.
+///     This calculates how many base_token are needed to purchase `tokens_out`.
 pub fn buy_exact_output_instruction(ctx: Context<BuyToken>, tokens_out: u64) -> Result<()> {
     // 1) Ensure we can fulfill the token request from the current supply
     {
-        let owned_token = &mut ctx.accounts.owned_token;
+        let omni_token = &mut ctx.accounts.omni_token;
         require!(
-            tokens_out <= owned_token.supply,
+            tokens_out <= omni_token.supply,
             CustomError::InsufficientTokenSupply
         );
     }
 
-    // 2) Compute how many lamports are required using buy_exact_output
-    let lamports_required = {
-        let owned_token = &mut ctx.accounts.owned_token;
-        let lamports_u64 = owned_token
-            .bonding_curve
-            .buy_exact_output(tokens_out as u128);
-        lamports_u64
+    // 2) Compute how many base_token are required using buy_exact_output
+    let base_token_required = {
+        let omni_token = &mut ctx.accounts.omni_token;
+        let base_token_u64 = omni_token.bonding_curve.buy_exact_output(tokens_out);
+        base_token_u64
     };
 
-    // 3) Transfer those lamports from the buyer -> escrow
+    // 3) Transfer those base_token from the buyer -> escrow
     let cpi_ctx = CpiContext::new(
         ctx.accounts.system_program.to_account_info(),
         Transfer {
@@ -151,14 +149,14 @@ pub fn buy_exact_output_instruction(ctx: Context<BuyToken>, tokens_out: u64) -> 
             to: ctx.accounts.escrow_pda.to_account_info(),
         },
     );
-    system_program::transfer(cpi_ctx, lamports_required)?;
+    system_program::transfer(cpi_ctx, base_token_required)?;
 
     // 4) Mint exactly `tokens_out` raw tokens (convert with decimals)
-    let bump = ctx.bumps.owned_token;
+    let bump = ctx.bumps.omni_token;
     let creator_key = ctx.accounts.creator.key();
     let token_seed_key = ctx.accounts.token_seed.key();
     let signer_seeds = &[
-        b"owned_token".as_ref(),
+        b"omni_token".as_ref(),
         creator_key.as_ref(),
         token_seed_key.as_ref(),
         &[bump],
@@ -174,7 +172,7 @@ pub fn buy_exact_output_instruction(ctx: Context<BuyToken>, tokens_out: u64) -> 
             MintTo {
                 mint: ctx.accounts.mint.to_account_info(),
                 to: ctx.accounts.buyer_token_account.to_account_info(),
-                authority: ctx.accounts.owned_token.to_account_info(),
+                authority: ctx.accounts.omni_token.to_account_info(),
             },
             &[signer_seeds],
         ),
@@ -182,8 +180,8 @@ pub fn buy_exact_output_instruction(ctx: Context<BuyToken>, tokens_out: u64) -> 
     )?;
 
     // 5) Update token supply
-    let owned_token = &mut ctx.accounts.owned_token;
-    owned_token.supply = owned_token
+    let omni_token = &mut ctx.accounts.omni_token;
+    omni_token.supply = omni_token
         .supply
         .checked_sub(tokens_out)
         .ok_or(CustomError::MathOverflow)?;

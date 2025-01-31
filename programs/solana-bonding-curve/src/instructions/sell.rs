@@ -26,15 +26,15 @@ pub struct SellToken<'info> {
 
     #[account(
         mut,
-        seeds = [b"owned_token", creator.key().as_ref(), token_seed.key().as_ref()],
+        seeds = [b"omni_token", creator.key().as_ref(), token_seed.key().as_ref()],
         bump
     )]
-    pub owned_token: Account<'info, OwnedToken>,
+    pub omni_token: Account<'info, OwnedToken>,
 
     #[account(
         mut,
         seeds = [b"escrow", creator.key().as_ref(), token_seed.key().as_ref()],
-        bump = owned_token.escrow_bump,
+        bump = omni_token.escrow_bump,
         owner = system_program::ID
     )]
     /// CHECK: escrow for SOL
@@ -81,15 +81,15 @@ pub fn sell_exact_input_instruction(
     // --------------------------------------------------------------------
     // 2) Calculate how much SOL to return
     // --------------------------------------------------------------------
-    let owned_token = &mut ctx.accounts.owned_token;
-    let base_token = owned_token
+    let omni_token = &mut ctx.accounts.omni_token;
+    let base_token = omni_token
         .bonding_curve
-        .sell_exact_input(normalized_omni_token_amount as u128);
+        .sell_exact_input(normalized_omni_token_amount);
 
     // --------------------------------------------------------------------
     // 3) Transfer SOL from escrow -> user
     // --------------------------------------------------------------------
-    let bump = owned_token.escrow_bump;
+    let bump = omni_token.escrow_bump;
     let creator_key = ctx.accounts.creator.key();
     let token_seed_key = ctx.accounts.token_seed.key();
 
@@ -118,7 +118,7 @@ pub fn sell_exact_input_instruction(
     // --------------------------------------------------------------------
     // 4) Increase supply
     // --------------------------------------------------------------------
-    owned_token.supply = owned_token
+    omni_token.supply = omni_token
         .supply
         .checked_add(normalized_omni_token_amount)
         .ok_or(CustomError::MathOverflow)?;
@@ -133,10 +133,10 @@ pub fn sell_exact_output_instruction(
     // --------------------------------------------------------------------
     // 1) Determine how many tokens need to be burned
     // --------------------------------------------------------------------
-    let owned_token = &mut ctx.accounts.owned_token;
-    let tokens_to_burn = owned_token
+    let omni_token = &mut ctx.accounts.omni_token;
+    let tokens_to_burn = omni_token
         .bonding_curve
-        .sell_exact_output(base_token_requested as u128);
+        .sell_exact_output(base_token_requested);
 
     // Convert to raw token amount with decimals
     let raw_burn_amount = tokens_to_burn
@@ -160,7 +160,7 @@ pub fn sell_exact_output_instruction(
     // --------------------------------------------------------------------
     // 3) Transfer the exact lamports to the user
     // --------------------------------------------------------------------
-    let bump = owned_token.escrow_bump;
+    let bump = omni_token.escrow_bump;
     let creator_key = ctx.accounts.creator.key();
     let token_seed_key = ctx.accounts.token_seed.key();
 
@@ -189,9 +189,8 @@ pub fn sell_exact_output_instruction(
 
     // --------------------------------------------------------------------
     // 4) Increase the supply on the OwnedToken
-    //    (Because we "return" tokens to the curve’s supply logic)
     // --------------------------------------------------------------------
-    owned_token.supply = owned_token
+    omni_token.supply = omni_token
         .supply
         .checked_add(tokens_to_burn as u64)
         .ok_or(CustomError::MathOverflow)?;

@@ -23,15 +23,15 @@ pub struct MintInitialTokens<'info> {
 
     #[account(
         mut,
-        seeds = [b"owned_token", creator.key().as_ref(), token_seed.key().as_ref()],
+        seeds = [b"omni_token", creator.key().as_ref(), token_seed.key().as_ref()],
         bump
     )]
-    pub owned_token: Account<'info, OwnedToken>,
+    pub omni_token: Account<'info, OwnedToken>,
 
     #[account(
         mut,
         seeds = [b"escrow", creator.key().as_ref(), token_seed.key().as_ref()],
-        bump = owned_token.escrow_bump,
+        bump = omni_token.escrow_bump,
         owner = system_program::ID
     )]
     /// CHECK: Escrow for SOL
@@ -51,7 +51,10 @@ pub struct MintInitialTokens<'info> {
     pub system_program: UncheckedAccount<'info>,
 }
 
-pub fn mint_initial_tokens_instruction(ctx: Context<MintInitialTokens>, deposit_lamports: u64) -> Result<()> {
+pub fn mint_initial_tokens_instruction(
+    ctx: Context<MintInitialTokens>,
+    deposit_lamports: u64,
+) -> Result<()> {
     // --------------------------------------------------------------------
     // 1) Transfer lamports from `creator` to Escrow PDA
     // --------------------------------------------------------------------
@@ -92,7 +95,7 @@ pub fn mint_initial_tokens_instruction(ctx: Context<MintInitialTokens>, deposit_
     msg!("DEBUG: Calling buy_exact_input() in the bonding curve...");
     let minted_tokens_u128 = ctx
         .accounts
-        .owned_token
+        .omni_token
         .bonding_curve
         .buy_exact_input(deposit_lamports);
 
@@ -101,10 +104,7 @@ pub fn mint_initial_tokens_instruction(ctx: Context<MintInitialTokens>, deposit_
         minted_tokens_u128
     );
 
-    require!(
-        minted_tokens_u128 <= u64::MAX as u128,
-        CustomError::MathOverflow
-    );
+    require!(minted_tokens_u128 <= u64::MAX, CustomError::MathOverflow);
 
     let human_readable_tokens = minted_tokens_u128 as u64;
     msg!(
@@ -115,7 +115,7 @@ pub fn mint_initial_tokens_instruction(ctx: Context<MintInitialTokens>, deposit_
     // --------------------------------------------------------------------
     // 3) Mint these tokens to the creator's ATA
     // --------------------------------------------------------------------
-    let bump = ctx.bumps.owned_token;
+    let bump = ctx.bumps.omni_token;
     let creator_key = ctx.accounts.creator.key();
     let token_seed_key = ctx.accounts.token_seed.key();
 
@@ -124,7 +124,7 @@ pub fn mint_initial_tokens_instruction(ctx: Context<MintInitialTokens>, deposit_
     msg!("DEBUG: Token Seed Pubkey = {}", token_seed_key);
 
     let signer_seeds = &[
-        b"owned_token".as_ref(),
+        b"omni_token".as_ref(),
         creator_key.as_ref(),
         token_seed_key.as_ref(),
         &[bump],
@@ -137,7 +137,7 @@ pub fn mint_initial_tokens_instruction(ctx: Context<MintInitialTokens>, deposit_
             MintTo {
                 mint: ctx.accounts.mint.to_account_info(),
                 to: ctx.accounts.creator_token_account.to_account_info(),
-                authority: ctx.accounts.owned_token.to_account_info(),
+                authority: ctx.accounts.omni_token.to_account_info(),
             },
             &[signer_seeds],
         ),
@@ -148,12 +148,12 @@ pub fn mint_initial_tokens_instruction(ctx: Context<MintInitialTokens>, deposit_
     // --------------------------------------------------------------------
     // 4) Reduce supply
     // --------------------------------------------------------------------
-    let owned_token = &mut ctx.accounts.owned_token;
-    owned_token.supply = owned_token
+    let omni_token = &mut ctx.accounts.omni_token;
+    omni_token.supply = omni_token
         .supply
         .checked_sub(human_readable_tokens)
         .ok_or(CustomError::MathOverflow)?;
-    msg!("DEBUG: owned_token.supply AFTER sub={}", owned_token.supply);
+    msg!("DEBUG: omni_token.supply AFTER sub={}", omni_token.supply);
 
     msg!("DEBUG: Instruction complete. Returning Ok(()).");
     Ok(())
