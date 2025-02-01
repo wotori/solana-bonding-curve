@@ -1,7 +1,5 @@
 use anchor_lang::prelude::*;
-use anchor_lang::system_program;
-use anchor_lang::system_program::Transfer;
-use anchor_spl::token::{self, Mint, MintTo, Token, TokenAccount};
+use anchor_spl::token::{self, Mint, MintTo, Token, TokenAccount, Transfer};
 
 use crate::curves::traits::BondingCurveTrait;
 use crate::errors::CustomError;
@@ -12,9 +10,9 @@ use crate::XyberToken;
 // (3) MintInitialTokens
 // ------------------------------------------------------------------------
 #[derive(Accounts)]
-#[instruction(deposit_lamports: u64)]
+#[instruction(deposit_amount: u64)]
 pub struct MintInitialTokens<'info> {
-    /// CHECK: seed
+    /// CHECK: Seed account
     #[account()]
     pub token_seed: UncheckedAccount<'info>,
 
@@ -28,14 +26,24 @@ pub struct MintInitialTokens<'info> {
     )]
     pub xyber_token: Account<'info, XyberToken>,
 
+    // Escrow token account to receive payment tokens (XBT)
     #[account(
         mut,
-        seeds = [b"escrow", creator.key().as_ref(), token_seed.key().as_ref()],
-        bump = xyber_token.escrow_bump,
-        owner = system_program::ID
+        associated_token::mint = payment_mint,
+        associated_token::authority = xyber_token,
     )]
-    /// CHECK: Escrow for SOL
-    pub escrow_pda: UncheckedAccount<'info>,
+    pub escrow_token_account: Account<'info, TokenAccount>,
+
+    // Payment token mint (XBT SPL token)
+    pub payment_mint: Account<'info, Mint>,
+
+    // Creator's token account for payment tokens (to be debited)
+    #[account(
+        mut,
+        associated_token::mint = payment_mint,
+        associated_token::authority = creator,
+    )]
+    pub creator_payment_account: Account<'info, TokenAccount>,
 
     #[account(mut)]
     pub mint: Account<'info, Mint>,
@@ -43,67 +51,42 @@ pub struct MintInitialTokens<'info> {
     #[account(mut)]
     pub creator_token_account: Account<'info, TokenAccount>,
 
-    // Programs
     pub token_program: Program<'info, Token>,
-
-    #[account(address = system_program::ID)]
-    /// CHECK: System Program
-    pub system_program: UncheckedAccount<'info>,
 }
 
 pub fn mint_initial_tokens_instruction(
     ctx: Context<MintInitialTokens>,
-    deposit_lamports: u64,
+    deposit_amount: u64,
 ) -> Result<()> {
-    // --------------------------------------------------------------------
-    // 1) Transfer lamports from `creator` to Escrow PDA
-    // --------------------------------------------------------------------
     msg!(
-        "DEBUG: Starting mint_initial_tokens_instruction. deposit_lamports={}",
-        deposit_lamports
-    );
-    msg!(
-        "DEBUG: Escrow PDA balance BEFORE transfer: {} lamports",
-        ctx.accounts.escrow_pda.to_account_info().lamports()
-    );
-    msg!(
-        "DEBUG: Creator balance BEFORE transfer: {} lamports",
-        ctx.accounts.creator.to_account_info().lamports()
+        "DEBUG: Starting mint_initial_tokens_instruction. deposit_amount={}",
+        deposit_amount
     );
 
-    let cpi_ctx = CpiContext::new(
-        ctx.accounts.system_program.to_account_info(),
+    // Transfer payment tokens (XBT) from creator to escrow token account
+    let transfer_ctx = CpiContext::new(
+        ctx.accounts.token_program.to_account_info(),
         Transfer {
-            from: ctx.accounts.creator.to_account_info(),
-            to: ctx.accounts.escrow_pda.to_account_info(),
+            from: ctx.accounts.creator_payment_account.to_account_info(),
+            to: ctx.accounts.escrow_token_account.to_account_info(),
+            authority: ctx.accounts.creator.to_account_info(),
         },
     );
-    system_program::transfer(cpi_ctx, deposit_lamports)?;
+    token::transfer(transfer_ctx, deposit_amount)?;
+    msg!("DEBUG: Payment transfer SUCCESS");
 
-    msg!(
-        "DEBUG: Transfer SUCCESS. Escrow PDA balance AFTER transfer: {} lamports",
-        ctx.accounts.escrow_pda.to_account_info().lamports()
-    );
-    msg!(
-        "DEBUG: Creator balance AFTER transfer: {} lamports",
-        ctx.accounts.creator.to_account_info().lamports()
-    );
-
-    // --------------------------------------------------------------------
-    // 2) Calculate the token amount via the bonding curve
-    // --------------------------------------------------------------------
+    // Calculate token amount via the bonding curve
     msg!("DEBUG: Calling buy_exact_input() in the bonding curve...");
     let minted_tokens_u128 = ctx
         .accounts
         .xyber_token
         .bonding_curve
-        .buy_exact_input(deposit_lamports);
+        .buy_exact_input(deposit_amount);
 
     msg!(
         "DEBUG: buy_exact_input returned minted_tokens_u128={}",
         minted_tokens_u128
     );
-
     require!(minted_tokens_u128 <= u64::MAX, CustomError::MathOverflow);
 
     let human_readable_tokens = minted_tokens_u128 as u64;
@@ -112,9 +95,7 @@ pub fn mint_initial_tokens_instruction(
         human_readable_tokens
     );
 
-    // --------------------------------------------------------------------
-    // 3) Mint these tokens to the creator's ATA
-    // --------------------------------------------------------------------
+    // Mint new tokens to the creator's token account
     let bump = ctx.bumps.xyber_token;
     let creator_key = ctx.accounts.creator.key();
     let token_seed_key = ctx.accounts.token_seed.key();
@@ -145,9 +126,7 @@ pub fn mint_initial_tokens_instruction(
     )?;
     msg!("DEBUG: mint_to SUCCESS!");
 
-    // --------------------------------------------------------------------
-    // 4) Reduce supply
-    // --------------------------------------------------------------------
+    // Reduce supply
     let xyber_token = &mut ctx.accounts.xyber_token;
     xyber_token.supply = xyber_token
         .supply

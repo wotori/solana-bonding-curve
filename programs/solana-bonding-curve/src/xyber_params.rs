@@ -14,12 +14,7 @@ pub static _BONDING_SCALE_FACTOR: u128 = 32_190_005_730 * (LAMPORTS_PER_SOL as u
 #[derive(AnchorSerialize, AnchorDeserialize, Clone)]
 pub struct CreateTokenParams {
     pub token_supply: u64,
-    // pub token_decimals: u8,
     pub token_grad_thr_usd: u16,
-
     pub bonding_curve: SmoothBondingCurve,
     pub accepted_base_mint: Pubkey,
 }
-
-/*  TODO: Theoretically, token_supply parameter is present in the bonding curve as a_total_tokens, but for reliability,
-it’s better to calculate it here as well. It might be worth considering removing it.*/

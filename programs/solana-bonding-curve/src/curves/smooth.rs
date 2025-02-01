@@ -17,7 +17,7 @@ pub struct SmoothBondingCurve {
     /// Virtual pool offset (in base_tokens)
     pub c_bonding_scale_factor: u64,
     /// Total base asset deposited (in base_tokens)
-    pub x: u64,
+    pub x_total_base_deposit: u64,
 }
 
 impl SmoothBondingCurve {
@@ -63,51 +63,51 @@ impl SmoothBondingCurve {
 impl BondingCurveTrait for SmoothBondingCurve {
     /// Buys with exact base_tokens in, returning the exact number of minted tokens (Δy).
     fn buy_exact_input(&mut self, base_in: u64) -> u64 {
-        let old_y = self.y_of_x(self.x);
-        let new_x = self.x.saturating_add(base_in);
+        let old_y = self.y_of_x(self.x_total_base_deposit);
+        let new_x = self.x_total_base_deposit.saturating_add(base_in);
         let new_y = self.y_of_x(new_x);
         let minted = new_y.saturating_sub(old_y);
 
-        self.x = new_x;
+        self.x_total_base_deposit = new_x;
         minted as u64
     }
 
     /// Buys an exact number of tokens out (tokens_out), returning the exact base_tokens required.
     fn buy_exact_output(&mut self, tokens_out: u64) -> u64 {
-        let old_y = self.y_of_x(self.x);
+        let old_y = self.y_of_x(self.x_total_base_deposit);
         let new_y = old_y
             .checked_add(tokens_out)
             .expect("Cannot buy a negative amount or overflow tokens");
 
         let x_prime = self.solve_for_x_prime(new_y as u128);
         let base_in = x_prime
-            .checked_sub(self.x as u128)
+            .checked_sub(self.x_total_base_deposit as u128)
             .expect("Not enough base_tokens to buy these tokens");
 
-        self.x = x_prime as u64;
+        self.x_total_base_deposit = x_prime as u64;
         base_in as u64
     }
 
     /// Sells an exact number of tokens in, returning the exact base_tokens out.
     fn sell_exact_input(&mut self, tokens_in: u64) -> u64 {
-        let old_y = self.y_of_x(self.x);
+        let old_y = self.y_of_x(self.x_total_base_deposit);
         let new_y = old_y
             .checked_sub(tokens_in)
             .expect("Cannot sell more tokens than curve state holds");
 
         let x_prime = self.solve_for_x_prime(new_y as u128);
-        let base_out = (self.x as u128)
+        let base_out = (self.x_total_base_deposit as u128)
             .checked_sub(x_prime)
             .expect("logic error: x' is larger than old_x");
 
-        self.x = x_prime as u64;
+        self.x_total_base_deposit = x_prime as u64;
         base_out as u64
     }
 
     /// Sells enough tokens to receive exactly `base_out` from the curve.
     /// Returns the number of "pool tokens" that must be burned (`tokens_in`).
     fn sell_exact_output(&mut self, base_out: u64) -> u64 {
-        let old_x = self.x;
+        let old_x = self.x_total_base_deposit;
         let old_y = self.y_of_x(old_x);
 
         if base_out as u128 > old_x as u128 {
@@ -118,7 +118,7 @@ impl BondingCurveTrait for SmoothBondingCurve {
         let new_y = self.y_of_x(new_x as u64);
 
         let tokens_to_burn = old_y.saturating_sub(new_y);
-        self.x = new_x as u64;
+        self.x_total_base_deposit = new_x as u64;
         tokens_to_burn as u64
     }
 }
@@ -135,7 +135,7 @@ mod tests {
             a_total_tokens: xyber_params::_TOTAL_TOKENS,
             k_virtual_pool_offset: xyber_params::_BONDING_SCALE_FACTOR,
             c_bonding_scale_factor: xyber_params::_VIRTUAL_POOL_OFFSET,
-            x: 0,
+            x_total_base_deposit: 0,
         };
 
         let base_in = (0.001 * LAMPORTS_PER_SOL as f64) as u64;
@@ -155,7 +155,7 @@ mod tests {
             a_total_tokens: xyber_params::_TOTAL_TOKENS,
             k_virtual_pool_offset: xyber_params::_BONDING_SCALE_FACTOR,
             c_bonding_scale_factor: xyber_params::_VIRTUAL_POOL_OFFSET,
-            x: 0,
+            x_total_base_deposit: 0,
         };
 
         let tokens_out = 10_000;
@@ -173,7 +173,7 @@ mod tests {
             "Lamports required should be greater than 0"
         );
 
-        let new_y = curve.y_of_x(curve.x);
+        let new_y = curve.y_of_x(curve.x_total_base_deposit);
         println!("New y after buy: {}", new_y);
 
         assert_eq!(
@@ -197,7 +197,7 @@ mod tests {
                 a_total_tokens: xyber_params::_TOTAL_TOKENS,
                 k_virtual_pool_offset: xyber_params::_BONDING_SCALE_FACTOR,
                 c_bonding_scale_factor: xyber_params::_VIRTUAL_POOL_OFFSET,
-                x: 0,
+                x_total_base_deposit: 0,
             };
 
             let lamports_in = (LAMPORTS_PER_SOL as f64 * fraction) as u64;
@@ -229,7 +229,7 @@ mod tests {
             a_total_tokens: xyber_params::_TOTAL_TOKENS,
             k_virtual_pool_offset: xyber_params::_BONDING_SCALE_FACTOR,
             c_bonding_scale_factor: xyber_params::_VIRTUAL_POOL_OFFSET,
-            x: 0,
+            x_total_base_deposit: 0,
         };
 
         let sol_in = (0.1 * LAMPORTS_PER_SOL as f64) as u64;
@@ -253,25 +253,25 @@ mod tests {
             a_total_tokens: xyber_params::_TOTAL_TOKENS,
             k_virtual_pool_offset: xyber_params::_BONDING_SCALE_FACTOR,
             c_bonding_scale_factor: xyber_params::_VIRTUAL_POOL_OFFSET,
-            x: 0,
+            x_total_base_deposit: 0,
         };
 
         let base_in = (0.1 * LAMPORTS_PER_SOL as f64) as u64;
         let minted_tokens = curve.buy_exact_input(base_in);
         assert!(minted_tokens > 0, "Initial token minting failed");
 
-        let base_out = curve.x / 2;
+        let base_out = curve.x_total_base_deposit / 2;
 
         let tokens_burned = curve.sell_exact_output(base_out);
 
-        let remaining_lamports_in_pool = curve.x;
+        let remaining_lamports_in_pool = curve.x_total_base_deposit;
         let expected_after_withdraw = base_in - base_out;
         assert_eq!(
             remaining_lamports_in_pool, expected_after_withdraw,
             "Pool's base_tokens did not decrease correctly by base_out"
         );
 
-        let remaining_tokens = curve.y_of_x(curve.x);
+        let remaining_tokens = curve.y_of_x(curve.x_total_base_deposit);
         let real_burn = minted_tokens.saturating_sub(remaining_tokens);
         assert_eq!(
             tokens_burned, real_burn,
@@ -295,7 +295,7 @@ mod tests {
             a_total_tokens: xyber_params::_TOTAL_TOKENS,
             k_virtual_pool_offset: xyber_params::_BONDING_SCALE_FACTOR,
             c_bonding_scale_factor: xyber_params::_VIRTUAL_POOL_OFFSET,
-            x: 0,
+            x_total_base_deposit: 0,
         };
         let lamports_in_a: u64 = 2 * LAMPORTS_PER_SOL; // Purchasing with 2 SOL
         let minted_a = curve.buy_exact_input(lamports_in_a);
@@ -325,7 +325,7 @@ mod tests {
             a_total_tokens: xyber_params::_TOTAL_TOKENS,
             k_virtual_pool_offset: xyber_params::_BONDING_SCALE_FACTOR,
             c_bonding_scale_factor: xyber_params::_VIRTUAL_POOL_OFFSET,
-            x: 0,
+            x_total_base_deposit: 0,
         };
         let tokens_out_b = 50_000;
         let lamports_in_b = curve2.buy_exact_output(tokens_out_b);
@@ -353,7 +353,7 @@ mod tests {
 
     /// Estimates the marginal price (dX/dY) in float, used for logging/tracing price growth.
     fn approximate_price(curve: &SmoothBondingCurve) -> f64 {
-        let denom = (curve.c_bonding_scale_factor as f64) + (curve.x as f64);
+        let denom = (curve.c_bonding_scale_factor as f64) + (curve.x_total_base_deposit as f64);
         let k = curve.k_virtual_pool_offset as f64;
         // For y(x) = A - (K / (C + x)), the local slope dX/dY is:
         //     dX/dY = (C + x)^2 / K
@@ -366,7 +366,7 @@ mod tests {
             a_total_tokens: xyber_params::_TOTAL_TOKENS,
             k_virtual_pool_offset: xyber_params::_BONDING_SCALE_FACTOR,
             c_bonding_scale_factor: xyber_params::_VIRTUAL_POOL_OFFSET,
-            x: 0,
+            x_total_base_deposit: 0,
         };
 
         let target_liquidity_usd = 70_000.0;
@@ -377,14 +377,14 @@ mod tests {
         let max_iterations: u16 = 1000;
         let mut iteration = 0;
 
-        while (curve.x as f64) / (LAMPORTS_PER_SOL as f64) < target_sol_in_pool {
+        while (curve.x_total_base_deposit as f64) / (LAMPORTS_PER_SOL as f64) < target_sol_in_pool {
             iteration += 1;
             if iteration > max_iterations {
                 panic!("Exceeded max iterations; something might be off.");
             }
 
             let minted = curve.buy_exact_input(base_in_per_step);
-            let total_pool_sol = (curve.x as f64) / (LAMPORTS_PER_SOL as f64);
+            let total_pool_sol = (curve.x_total_base_deposit as f64) / (LAMPORTS_PER_SOL as f64);
             let new_price = approximate_price(&curve);
 
             println!(
@@ -394,7 +394,7 @@ mod tests {
             );
         }
 
-        let final_sol = (curve.x as f64) / (LAMPORTS_PER_SOL as f64);
+        let final_sol = (curve.x_total_base_deposit as f64) / (LAMPORTS_PER_SOL as f64);
         let final_usd = final_sol * sol_price_usd;
         println!(
             "Reached target liquidity.\n  - Final SOL in pool: {:.2}\n  - Final USD value: ${:.2}\n",

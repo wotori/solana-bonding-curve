@@ -11,7 +11,7 @@ use crate::{xyber_params, XyberToken};
 #[derive(Accounts)]
 #[instruction(params: CreateTokenParams)]
 pub struct CreateToken<'info> {
-    /// CHECK: arbitrary seed
+    /// CHECK: seed account
     #[account()]
     pub token_seed: UncheckedAccount<'info>,
 
@@ -25,7 +25,7 @@ pub struct CreateToken<'info> {
         bump,
         space = XyberToken::LEN
     )]
-    pub xyber_token: Account<'info, XyberToken>,
+    pub xyber_token: Box<Account<'info, XyberToken>>,
 
     #[account(
         init,
@@ -47,34 +47,28 @@ pub struct CreateToken<'info> {
     pub associated_token_program: Program<'info, AssociatedToken>,
     pub token_program: Program<'info, Token>,
 
-    // Not used in create_token, but typically
-    // required by the same client code flow
-    /// CHECK: Escrow account
-    pub escrow_pda: UncheckedAccount<'info>,
-
-    // System
     #[account(address = system_program::ID)]
     /// CHECK: System Program
     pub system_program: UncheckedAccount<'info>,
 }
 
-pub fn create_token_instruction(
-    ctx: Context<CreateToken>,
+/// Creates a new token
+pub fn init_token_instruction(
+    ctx: Box<Context<CreateToken>>,
     params: CreateTokenParams,
 ) -> Result<()> {
     let xyber_token = &mut ctx.accounts.xyber_token;
 
-    xyber_token.supply = params.token_supply;
+    xyber_token.supply = params.bonding_curve.a_total_tokens;
     xyber_token.grad_threshold = params.token_grad_thr_usd;
+    xyber_token.accepted_base_mint = params.accepted_base_mint;
 
     xyber_token.bonding_curve = SmoothBondingCurve {
         a_total_tokens: params.bonding_curve.a_total_tokens,
-        c_bonding_scale_factor: params.bonding_curve.c_bonding_scale_factor,
         k_virtual_pool_offset: params.bonding_curve.k_virtual_pool_offset,
-        x: 0,
+        c_bonding_scale_factor: params.bonding_curve.c_bonding_scale_factor,
+        x_total_base_deposit: 0,
     };
-
-    xyber_token.accepted_base_mint = params.accepted_base_mint;
 
     Ok(())
 }
