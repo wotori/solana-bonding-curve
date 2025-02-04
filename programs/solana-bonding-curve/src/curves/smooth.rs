@@ -155,18 +155,20 @@ mod tests {
     use anchor_lang::solana_program::native_token::LAMPORTS_PER_SOL;
 
     mod xyber_params {
+        use anchor_lang::solana_program::native_token::LAMPORTS_PER_SOL;
+
         // Example values; replace with actual parameters
-        pub const _TOTAL_TOKENS: u64 = 100_000_000;
-        pub const _BONDING_SCALE_FACTOR: u128 = 1_000_000_000_000;
-        pub const _VIRTUAL_POOL_OFFSET: u64 = 30_000_000_000;
+        pub const TOTAL_TOKENS: u64 = 1_073_000_191;
+        pub const BONDING_SCALE_FACTOR: u128 = 32_190_005_730 * (LAMPORTS_PER_SOL as u128);
+        pub const VIRTUAL_POOL_OFFSET: u64 = 30 * LAMPORTS_PER_SOL;
     }
 
     #[test]
     fn test_buy_exact_input() {
         let mut curve = SmoothBondingCurve {
-            a_total_tokens: xyber_params::_TOTAL_TOKENS,
-            k_virtual_pool_offset: xyber_params::_BONDING_SCALE_FACTOR,
-            c_bonding_scale_factor: xyber_params::_VIRTUAL_POOL_OFFSET,
+            a_total_tokens: xyber_params::TOTAL_TOKENS,
+            k_virtual_pool_offset: xyber_params::BONDING_SCALE_FACTOR,
+            c_bonding_scale_factor: xyber_params::VIRTUAL_POOL_OFFSET,
             x_total_base_deposit: 0,
         };
 
@@ -184,9 +186,9 @@ mod tests {
     #[test]
     fn test_buy_exact_output() {
         let mut curve = SmoothBondingCurve {
-            a_total_tokens: xyber_params::_TOTAL_TOKENS,
-            k_virtual_pool_offset: xyber_params::_BONDING_SCALE_FACTOR,
-            c_bonding_scale_factor: xyber_params::_VIRTUAL_POOL_OFFSET,
+            a_total_tokens: xyber_params::TOTAL_TOKENS,
+            k_virtual_pool_offset: xyber_params::BONDING_SCALE_FACTOR,
+            c_bonding_scale_factor: xyber_params::VIRTUAL_POOL_OFFSET,
             x_total_base_deposit: 0,
         };
 
@@ -225,9 +227,9 @@ mod tests {
 
         for fraction in fractions {
             let mut curve = SmoothBondingCurve {
-                a_total_tokens: xyber_params::_TOTAL_TOKENS,
-                k_virtual_pool_offset: xyber_params::_BONDING_SCALE_FACTOR,
-                c_bonding_scale_factor: xyber_params::_VIRTUAL_POOL_OFFSET,
+                a_total_tokens: xyber_params::TOTAL_TOKENS,
+                k_virtual_pool_offset: xyber_params::BONDING_SCALE_FACTOR,
+                c_bonding_scale_factor: xyber_params::VIRTUAL_POOL_OFFSET,
                 x_total_base_deposit: 0,
             };
 
@@ -257,9 +259,9 @@ mod tests {
     #[test]
     fn test_sell_exact_input() {
         let mut curve = SmoothBondingCurve {
-            a_total_tokens: xyber_params::_TOTAL_TOKENS,
-            k_virtual_pool_offset: xyber_params::_BONDING_SCALE_FACTOR,
-            c_bonding_scale_factor: xyber_params::_VIRTUAL_POOL_OFFSET,
+            a_total_tokens: xyber_params::TOTAL_TOKENS,
+            k_virtual_pool_offset: xyber_params::BONDING_SCALE_FACTOR,
+            c_bonding_scale_factor: xyber_params::VIRTUAL_POOL_OFFSET,
             x_total_base_deposit: 0,
         };
 
@@ -281,9 +283,9 @@ mod tests {
     #[test]
     fn test_sell_exact_output() {
         let mut curve = SmoothBondingCurve {
-            a_total_tokens: xyber_params::_TOTAL_TOKENS,
-            k_virtual_pool_offset: xyber_params::_BONDING_SCALE_FACTOR,
-            c_bonding_scale_factor: xyber_params::_VIRTUAL_POOL_OFFSET,
+            a_total_tokens: xyber_params::TOTAL_TOKENS,
+            k_virtual_pool_offset: xyber_params::BONDING_SCALE_FACTOR,
+            c_bonding_scale_factor: xyber_params::VIRTUAL_POOL_OFFSET,
             x_total_base_deposit: 0,
         };
 
@@ -323,9 +325,9 @@ mod tests {
     fn test_buy_sell_symmetry() {
         // (A) Buy Exact Input -> Sell Exact Input
         let mut curve = SmoothBondingCurve {
-            a_total_tokens: xyber_params::_TOTAL_TOKENS,
-            k_virtual_pool_offset: xyber_params::_BONDING_SCALE_FACTOR,
-            c_bonding_scale_factor: xyber_params::_VIRTUAL_POOL_OFFSET,
+            a_total_tokens: xyber_params::TOTAL_TOKENS,
+            k_virtual_pool_offset: xyber_params::BONDING_SCALE_FACTOR,
+            c_bonding_scale_factor: xyber_params::VIRTUAL_POOL_OFFSET,
             x_total_base_deposit: 0,
         };
         let lamports_in_a: u64 = 2 * LAMPORTS_PER_SOL; // Purchasing with 2 SOL
@@ -353,9 +355,9 @@ mod tests {
 
         // (B) Buy Exact Output -> Sell Exact Input
         let mut curve2 = SmoothBondingCurve {
-            a_total_tokens: xyber_params::_TOTAL_TOKENS,
-            k_virtual_pool_offset: xyber_params::_BONDING_SCALE_FACTOR,
-            c_bonding_scale_factor: xyber_params::_VIRTUAL_POOL_OFFSET,
+            a_total_tokens: xyber_params::TOTAL_TOKENS,
+            k_virtual_pool_offset: xyber_params::BONDING_SCALE_FACTOR,
+            c_bonding_scale_factor: xyber_params::VIRTUAL_POOL_OFFSET,
             x_total_base_deposit: 0,
         };
         let tokens_out_b = 50_000;
@@ -394,9 +396,9 @@ mod tests {
     #[test]
     fn test_buy_until_70k_liquidity() {
         let mut curve = SmoothBondingCurve {
-            a_total_tokens: xyber_params::_TOTAL_TOKENS,
-            k_virtual_pool_offset: xyber_params::_BONDING_SCALE_FACTOR,
-            c_bonding_scale_factor: xyber_params::_VIRTUAL_POOL_OFFSET,
+            a_total_tokens: xyber_params::TOTAL_TOKENS,
+            k_virtual_pool_offset: xyber_params::BONDING_SCALE_FACTOR,
+            c_bonding_scale_factor: xyber_params::VIRTUAL_POOL_OFFSET,
             x_total_base_deposit: 0,
         };
 
