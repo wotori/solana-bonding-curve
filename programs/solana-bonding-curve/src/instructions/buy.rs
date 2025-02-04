@@ -3,7 +3,7 @@ use anchor_lang::system_program;
 use anchor_spl::associated_token::AssociatedToken;
 use anchor_spl::token::{self, Mint, MintTo, Token, TokenAccount, Transfer};
 
-use crate::curves::traits::BondingCurveTrait;
+use crate::curves::BondingCurveTrait;
 use crate::errors::CustomError;
 use crate::{xyber_params, XyberToken};
 
@@ -62,14 +62,11 @@ pub struct BuyToken<'info> {
     pub system_program: UncheckedAccount<'info>,
 }
 /// (1) Buy tokens by specifying the amount of payment tokens (buy_exact_input).
-pub fn buy_exact_input_instruction(
-    ctx: Box<Context<BuyToken>>, // You can also box the context if desired
-    payment_amount: u64,
-) -> Result<()> {
+pub fn buy_exact_input_instruction(ctx: Context<BuyToken>, payment_amount: u64) -> Result<()> {
     // 1) Use the bonding curve to determine the number of tokens to mint from the given payment amount.
     let tokens_u128 = {
         let xyber_token = &mut ctx.accounts.xyber_token;
-        let tokens_u128 = xyber_token.bonding_curve.buy_exact_input(payment_amount);
+        let tokens_u128 = xyber_token.bonding_curve.buy_exact_input(payment_amount)?;
         require!(
             tokens_u128 as u64 <= xyber_token.supply,
             CustomError::InsufficientTokenSupply
@@ -128,7 +125,7 @@ pub fn buy_exact_input_instruction(
 /// (2) Buy tokens by specifying the exact number of tokens desired (buy_exact_output).
 ///     This function calculates the required amount of payment tokens to purchase `tokens_out`.
 pub fn buy_exact_output_instruction(
-    ctx: Box<Context<BuyToken>>, // Boxed as well
+    ctx: Context<BuyToken>, // Boxed as well
     tokens_out: u64,
 ) -> Result<()> {
     // 1) Verify that the token supply is sufficient for the requested amount.
@@ -143,7 +140,7 @@ pub fn buy_exact_output_instruction(
     // 2) Calculate the required payment tokens using bonding_curve.buy_exact_output.
     let payment_required = {
         let xyber_token = &mut ctx.accounts.xyber_token;
-        xyber_token.bonding_curve.buy_exact_output(tokens_out)
+        xyber_token.bonding_curve.buy_exact_output(tokens_out)?
     };
 
     // 3) Transfer payment tokens from the buyer's payment account to the escrow token account.

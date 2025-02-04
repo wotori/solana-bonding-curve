@@ -17,8 +17,6 @@ pub struct XyberToken {
     pub supply: u64,
     pub grad_threshold: u16,
     pub bonding_curve: SmoothBondingCurve,
-    pub escrow_pda: Pubkey,
-    pub escrow_bump: u8,
     pub accepted_base_mint: Pubkey,
     pub admin: Pubkey,
     pub is_graduated: bool,
@@ -46,7 +44,7 @@ pub mod bonding_curve {
         ctx: Context<CreateToken>,
         params: CreateTokenParams,
     ) -> Result<()> {
-        instructions::init_token_instruction(Box::new(ctx), params)
+        instructions::init_token_instruction(ctx, params)
     }
 
     // 1.2 MINT INITIAL TOKENS
@@ -68,11 +66,11 @@ pub mod bonding_curve {
     }
 
     pub fn buy_exact_input_instruction(ctx: Context<BuyToken>, lamports: u64) -> Result<()> {
-        instructions::buy_exact_input_instruction(Box::new(ctx), lamports)
+        instructions::buy_exact_input_instruction(ctx, lamports)
     }
 
     pub fn buy_exact_output_instruction(ctx: Context<BuyToken>, tokens_out: u64) -> Result<()> {
-        instructions::buy_exact_output_instruction(Box::new(ctx), tokens_out)
+        instructions::buy_exact_output_instruction(ctx, tokens_out)
     }
 
     pub fn sell_exact_input_instruction(

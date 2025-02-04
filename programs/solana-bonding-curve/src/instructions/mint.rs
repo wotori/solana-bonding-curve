@@ -1,7 +1,7 @@
 use anchor_lang::prelude::*;
 use anchor_spl::token::{self, Mint, MintTo, Token, TokenAccount, Transfer};
 
-use crate::curves::traits::BondingCurveTrait;
+use crate::curves::BondingCurveTrait;
 use crate::errors::CustomError;
 use crate::xyber_params;
 use crate::XyberToken;
@@ -81,7 +81,7 @@ pub fn mint_initial_tokens_instruction(
         .accounts
         .xyber_token
         .bonding_curve
-        .buy_exact_input(deposit_amount);
+        .buy_exact_input(deposit_amount)?;
 
     msg!(
         "DEBUG: buy_exact_input returned minted_tokens_u128={}",

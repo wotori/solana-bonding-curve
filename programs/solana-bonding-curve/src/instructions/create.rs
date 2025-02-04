@@ -53,10 +53,7 @@ pub struct CreateToken<'info> {
 }
 
 /// Creates a new token
-pub fn init_token_instruction(
-    ctx: Box<Context<CreateToken>>,
-    params: CreateTokenParams,
-) -> Result<()> {
+pub fn init_token_instruction(ctx: Context<CreateToken>, params: CreateTokenParams) -> Result<()> {
     let xyber_token = &mut ctx.accounts.xyber_token;
 
     xyber_token.supply = params.bonding_curve.a_total_tokens;
@@ -69,6 +66,9 @@ pub fn init_token_instruction(
         c_bonding_scale_factor: params.bonding_curve.c_bonding_scale_factor,
         x_total_base_deposit: 0,
     };
+
+    xyber_token.admin = ctx.accounts.creator.key();
+    xyber_token.is_graduated = false;
 
     Ok(())
 }

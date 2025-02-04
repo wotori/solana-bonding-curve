@@ -3,7 +3,7 @@ use anchor_lang::system_program;
 use anchor_spl::associated_token::AssociatedToken;
 use anchor_spl::token::{self, Burn, Mint, Token, TokenAccount, Transfer};
 
-use crate::curves::traits::BondingCurveTrait;
+use crate::curves::BondingCurveTrait;
 use crate::errors::CustomError;
 use crate::{xyber_params, XyberToken};
 
@@ -95,7 +95,7 @@ pub fn sell_exact_input_instruction(
         let xyber_token = &mut ctx.accounts.xyber_token;
         xyber_token
             .bonding_curve
-            .sell_exact_input(normalized_omni_token_amount)
+            .sell_exact_input(normalized_omni_token_amount)?
     };
 
     // --------------------------------------------------------------------
@@ -152,7 +152,7 @@ pub fn sell_exact_output_instruction(
         let xyber_token = &mut ctx.accounts.xyber_token;
         xyber_token
             .bonding_curve
-            .sell_exact_output(base_token_requested)
+            .sell_exact_output(base_token_requested)?
     };
 
     let raw_burn_amount = tokens_to_burn
