@@ -45,7 +45,7 @@ pub struct CreateToken<'info> {
     )]
     pub vault_token_account: Box<Account<'info, TokenAccount>>,
 
-    // Optionally, create or initialize the creator’s token account.
+    // Initialize the creator’s token account.
     #[account(
         init_if_needed,
         payer = creator,

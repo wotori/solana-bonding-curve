@@ -19,4 +19,7 @@ pub enum CustomError {
 
     #[msg("Insufficient escrow balance: Not enough tokens in escrow to complete the operation.")]
     InsufficientEscrowBalance,
+
+    #[msg("Token has graduated: The bonding curve is no longer active as the token is now listed on a DEX.")]
+    TokenIsGraduated,
 }

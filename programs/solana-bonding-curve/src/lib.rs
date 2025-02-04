@@ -2,6 +2,7 @@ use anchor_lang::prelude::*;
 
 mod curves;
 mod errors;
+mod events;
 mod xyber_params;
 
 mod instructions;
