@@ -8,9 +8,6 @@ use anchor_spl::metadata::mpl_token_metadata::{
 
 use crate::{xyber_params, XyberToken};
 
-// ------------------------------------------------------------------------
-// SetMetadata
-// ------------------------------------------------------------------------
 #[derive(Accounts)]
 pub struct SetMetadata<'info> {
     /// CHECK: arbitrary seed

@@ -168,3 +168,8 @@ pub static VIRTUAL_POOL_OFFSET: u64 = 30 * LAMPORTS_PER_SOL;
 pub static BONDING_SCALE_FACTOR: u128 = 32_190_005_730 * (LAMPORTS_PER_SOL as u128);
 pub static ACCEPTED_BASE_MINT: Pubkey = Pubkey::from_str("CThXy1nb8YgSDjKpWRn4znasTbEdmXggJ9hoHEMdYfiQ").unwrap();
 ```
+
+## Logs
+```
+solana logs GMjvbDmasN1FyYD6iGfj5u8EETdk9gTQnyoZUQA4PVGT --url devnet
+```

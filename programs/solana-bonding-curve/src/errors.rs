@@ -13,4 +13,10 @@ pub enum CustomError {
 
     #[msg("Liquidity not graduated: pool has not reached the required threshold.")]
     LiquidityNotGraduated,
+
+    #[msg("Insufficient token balance in the vault to fulfill the request.")]
+    InsufficientTokenVaultBalance,
+
+    #[msg("Insufficient escrow balance: Not enough tokens in escrow to complete the operation.")]
+    InsufficientEscrowBalance,
 }

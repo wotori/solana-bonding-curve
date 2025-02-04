@@ -10,4 +10,6 @@ pub struct CreateTokenParams {
     pub token_grad_thr_usd: u16,
     pub bonding_curve: SmoothBondingCurve,
     pub accepted_base_mint: Pubkey,
+    pub admin: Pubkey,
+    pub graduate_dollars_amount: u32,
 }

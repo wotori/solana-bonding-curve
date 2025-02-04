@@ -14,23 +14,22 @@ declare_id!("GMjvbDmasN1FyYD6iGfj5u8EETdk9gTQnyoZUQA4PVGT");
 
 #[account]
 pub struct XyberToken {
-    pub supply: u64,
     pub grad_threshold: u16,
     pub bonding_curve: SmoothBondingCurve,
     pub accepted_base_mint: Pubkey,
     pub admin: Pubkey,
+
+    pub graduate_dollars_amount: u32,
     pub is_graduated: bool,
 }
 
 impl XyberToken {
     pub const LEN: usize = 8  // Discriminator
-        + 8  // supply (u64)
         + 2  // grad_threshold (u16)
         + 40 // bonding_curve (struct)
-        + 32 // escrow_pda (Pubkey)
-        + 1  // escrow_bump (u8)
         + 32 // accepted_base_mint (Pubkey)
         + 32 // admin (Pubkey)
+        + 4  // graduate_dollars_amount
         + 1; // is_graduated (bool)
 }
 
@@ -40,11 +39,19 @@ pub mod bonding_curve {
     use super::*;
 
     // 1.1 CREATE TOKEN
-    pub fn init_token_instruction(
+    pub fn init_setup_token_instruction(
         ctx: Context<CreateToken>,
         params: CreateTokenParams,
     ) -> Result<()> {
-        instructions::init_token_instruction(ctx, params)
+        instructions::init_setup_token_instruction(ctx, params)
+    }
+
+    // 1.1 CREATE TOKEN
+    pub fn init_mint_full_supply_instruction(
+        ctx: Context<MintFullSupply>,
+        total_supply: u64,
+    ) -> Result<()> {
+        instructions::mint_full_supply_instruction(ctx, total_supply)
     }
 
     // 1.2 MINT INITIAL TOKENS
