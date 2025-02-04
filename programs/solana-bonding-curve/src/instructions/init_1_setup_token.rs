@@ -1,33 +1,28 @@
 use anchor_lang::prelude::*;
-use anchor_lang::system_program;
 use anchor_spl::associated_token::AssociatedToken;
-use anchor_spl::token::{Mint, Token, TokenAccount};
+use anchor_spl::token::{
+    self, spl_token::instruction::AuthorityType, Mint, MintTo, SetAuthority, Token, TokenAccount,
+};
 
-use crate::curves::SmoothBondingCurve;
-use crate::xyber_params::CreateTokenParams;
-use crate::{xyber_params, XyberToken};
+use crate::xyber_params;
+use crate::XyberToken;
 
 #[derive(Accounts)]
-#[instruction(params: CreateTokenParams)]
-pub struct CreateToken<'info> {
+pub struct InitAndMint<'info> {
+    // Re-derive the PDA using the same seeds.
+    #[account(
+        mut,
+        seeds = [b"xyber_token", creator.key().as_ref(), token_seed.key().as_ref()],
+        bump
+    )]
+    pub xyber_token: Account<'info, XyberToken>,
+
     /// CHECK: Used solely as a seed for PDA derivation.
-    pub token_seed: UncheckedAccount<'info>,
+    pub token_seed: AccountInfo<'info>,
 
     #[account(mut)]
     pub creator: Signer<'info>,
 
-    // The XyberToken account is a PDA derived from:
-    // [b"xyber_token", creator.key, token_seed.key]
-    #[account(
-        init,
-        payer = creator,
-        seeds = [b"xyber_token", creator.key().as_ref(), token_seed.key().as_ref()],
-        bump,
-        space = XyberToken::LEN
-    )]
-    pub xyber_token: Box<Account<'info, XyberToken>>,
-
-    // The token mint (its authority is set to the PDA: xyber_token)
     #[account(
         init,
         payer = creator,
@@ -36,7 +31,6 @@ pub struct CreateToken<'info> {
     )]
     pub mint: Box<Account<'info, Mint>>,
 
-    // The vault token account for the PDA
     #[account(
         init,
         payer = creator,
@@ -45,7 +39,6 @@ pub struct CreateToken<'info> {
     )]
     pub vault_token_account: Box<Account<'info, TokenAccount>>,
 
-    // Initialize the creator’s token account.
     #[account(
         init_if_needed,
         payer = creator,
@@ -54,32 +47,59 @@ pub struct CreateToken<'info> {
     )]
     pub creator_token_account: Box<Account<'info, TokenAccount>>,
 
-    // Programs
+    // Program accounts (small, so unboxed is fine)
     pub associated_token_program: Program<'info, AssociatedToken>,
     pub token_program: Program<'info, Token>,
-    #[account(address = system_program::ID)]
-    /// CHECK: System Program.
-    pub system_program: UncheckedAccount<'info>,
+    pub system_program: Program<'info, System>,
 }
 
-pub fn init_setup_token_instruction(
-    ctx: Context<CreateToken>,
-    params: CreateTokenParams,
-) -> Result<()> {
-    let xyber_token = &mut ctx.accounts.xyber_token;
+pub fn init_and_mint_full_supply_instruction(ctx: Context<InitAndMint>) -> Result<()> {
+    // 1. Retrieve the total supply from the core state (a_total_tokens) stored earlier.
+    let total_supply = ctx.accounts.xyber_token.bonding_curve.a_total_tokens;
 
-    xyber_token.grad_threshold = params.token_grad_thr_usd;
-    xyber_token.accepted_base_mint = params.accepted_base_mint;
-    xyber_token.bonding_curve = SmoothBondingCurve {
-        a_total_tokens: params.bonding_curve.a_total_tokens,
-        k_virtual_pool_offset: params.bonding_curve.k_virtual_pool_offset,
-        c_bonding_scale_factor: params.bonding_curve.c_bonding_scale_factor,
-        x_total_base_deposit: 0,
-    };
+    // 2. Update the core state with the addresses of the heavy accounts.
+    {
+        let token = &mut ctx.accounts.xyber_token;
+        token.mint = ctx.accounts.mint.key();
+        token.vault = ctx.accounts.vault_token_account.key();
+    }
 
-    xyber_token.admin = params.admin;
-    xyber_token.graduate_dollars_amount = params.graduate_dollars_amount;
-    xyber_token.is_graduated = false;
+    // 3. Retrieve the bump and construct the seeds array.
+    let bump = ctx.bumps.xyber_token;
+    let seeds = &[
+        b"xyber_token".as_ref(),
+        ctx.accounts.creator.key.as_ref(),
+        ctx.accounts.token_seed.key.as_ref(),
+        &[bump],
+    ];
+
+    // 4. Mint the total supply into the vault token account using the PDA as mint authority.
+    token::mint_to(
+        CpiContext::new_with_signer(
+            ctx.accounts.token_program.to_account_info(),
+            MintTo {
+                mint: ctx.accounts.mint.to_account_info(),
+                to: ctx.accounts.vault_token_account.to_account_info(),
+                authority: ctx.accounts.xyber_token.to_account_info(),
+            },
+            &[seeds],
+        ),
+        total_supply,
+    )?;
+
+    // 5. Remove the mint authority (set it to None) so no further tokens can be minted.
+    token::set_authority(
+        CpiContext::new_with_signer(
+            ctx.accounts.token_program.to_account_info(),
+            SetAuthority {
+                account_or_mint: ctx.accounts.mint.to_account_info(),
+                current_authority: ctx.accounts.xyber_token.to_account_info(),
+            },
+            &[seeds],
+        ),
+        AuthorityType::MintTokens,
+        None,
+    )?;
 
     Ok(())
 }

@@ -22,16 +22,22 @@ pub struct XyberToken {
 
     pub graduate_dollars_amount: u32,
     pub is_graduated: bool,
+
+    pub mint: Pubkey,
+    pub vault: Pubkey,
 }
 
 impl XyberToken {
     pub const LEN: usize = 8  // Discriminator
-        + 2  // grad_threshold (u16)
-        + 40 // bonding_curve (struct)
-        + 32 // accepted_base_mint (Pubkey)
-        + 32 // admin (Pubkey)
-        + 4  // graduate_dollars_amount
-        + 1; // is_graduated (bool)
+        + 2   // grad_threshold (u16)
+        + 40  // bonding_curve (struct)
+        + 32  // accepted_base_mint (Pubkey)
+        + 32  // admin (Pubkey)
+        + 4   // graduate_dollars_amount
+        + 1   // is_graduated (bool)
+        
+        + 32  // mint (Pubkey)
+        + 32; // vault (Pubkey)
 }
 
 #[program]
@@ -39,20 +45,19 @@ pub mod bonding_curve {
 
     use super::*;
 
-    // 1.1 CREATE TOKEN
-    pub fn init_setup_token_instruction(
-        ctx: Context<CreateToken>,
+    // 1.0 CREATE TOKEN
+    pub fn init_core_instruction(
+        ctx: Context<InitTokenCore>,
         params: CreateTokenParams,
     ) -> Result<()> {
-        instructions::init_setup_token_instruction(ctx, params)
+        instructions::init_token_core_instruction(ctx, params)
     }
 
     // 1.1 CREATE TOKEN
-    pub fn init_mint_full_supply_instruction(
-        ctx: Context<MintFullSupply>,
-        total_supply: u64,
+    pub fn init_and_mint_full_supply_instruction(
+        ctx: Context<InitAndMint>
     ) -> Result<()> {
-        instructions::mint_full_supply_instruction(ctx, total_supply)
+        instructions::init_and_mint_full_supply_instruction(ctx)
     }
 
     // 1.2 MINT INITIAL TOKENS
