@@ -8,7 +8,7 @@ use crate::XyberToken;
 #[derive(Accounts)]
 #[instruction(deposit_amount: u64)]
 pub struct MintInitialTokens<'info> {
-    /// CHECK: Seed account
+    /// CHECK:
     #[account()]
     pub token_seed: UncheckedAccount<'info>,
 
@@ -20,44 +20,51 @@ pub struct MintInitialTokens<'info> {
         seeds = [b"xyber_token", creator.key().as_ref(), token_seed.key().as_ref()],
         bump
     )]
-    pub xyber_token: Account<'info, XyberToken>,
+    pub xyber_token: Box<Account<'info, XyberToken>>,
 
-    // Escrow token account to receive the buyer’s payment
     #[account(
-        mut,
+        init_if_needed,
+        payer = creator,
         associated_token::mint = payment_mint,
         associated_token::authority = xyber_token,
     )]
-    pub escrow_token_account: Account<'info, TokenAccount>,
+    pub escrow_token_account: Box<Account<'info, TokenAccount>>,
 
-    // Payment token mint (e.g. XBT SPL token)
-    pub payment_mint: Account<'info, Mint>,
+    // Payment token mint
+    pub payment_mint: Box<Account<'info, Mint>>,
 
-    // Creator's payment token account (debited)
     #[account(
         mut,
         associated_token::mint = payment_mint,
         associated_token::authority = creator,
     )]
-    pub creator_payment_account: Account<'info, TokenAccount>,
+    pub creator_payment_account: Box<Account<'info, TokenAccount>>,
 
-    // Project’s token mint (already fully minted to the vault at init)
+    #[account(
+        init_if_needed,
+        payer = creator,
+        associated_token::mint = mint,
+        associated_token::authority = creator
+    )]
+    pub creator_token_account: Box<Account<'info, TokenAccount>>,
+
     #[account(mut)]
-    pub mint: Account<'info, Mint>,
+    pub mint: Box<Account<'info, Mint>>,
 
-    // The vault holding *all* of the tokens
     #[account(
         mut,
         associated_token::mint = mint,
         associated_token::authority = xyber_token
     )]
-    pub vault_token_account: Account<'info, TokenAccount>,
-
-    // The creator’s personal token account for receiving purchased tokens
-    #[account(mut)]
-    pub creator_token_account: Account<'info, TokenAccount>,
+    pub vault_token_account: Box<Account<'info, TokenAccount>>,
 
     pub token_program: Program<'info, Token>,
+
+    /// CHECK: associated_token_program
+    #[account(address = anchor_spl::associated_token::ID)]
+    pub associated_token_program: UncheckedAccount<'info>,
+
+    pub system_program: Program<'info, System>,
 }
 
 pub fn mint_initial_tokens_instruction(

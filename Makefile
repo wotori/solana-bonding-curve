@@ -2,7 +2,7 @@ test:
 	anchor test --skip-build --skip-deploy -- --verbose --provider.cluster devnet
 
 deploy:
-	anchor deploy --program-name bonding_curve --program-keypair target-deploy-keypair.json
+	anchor build && anchor deploy --program-name bonding_curve --program-keypair target-deploy-keypair.json
 
 bd:
 	anchor build && anchor deploy

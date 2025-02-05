@@ -2,9 +2,7 @@ use crate::errors::CustomError;
 use crate::xyber_params;
 use crate::XyberToken;
 use anchor_lang::prelude::*;
-use anchor_spl::associated_token::AssociatedToken;
-use anchor_spl::token::{Mint, Token, TokenAccount};
-
+use anchor_spl::token::Token;
 use token_factory::cpi;
 use token_factory::cpi::accounts::CreateAndMintToken;
 
@@ -17,52 +15,35 @@ pub struct InitAndMint<'info> {
     )]
     pub xyber_token: Account<'info, XyberToken>,
 
-    /// CHECK: Used solely for PDA derivation.
+    /// CHECK: 32 bytes used for PDA derivation
     pub token_seed: AccountInfo<'info>,
 
     #[account(mut)]
     pub creator: Signer<'info>,
 
-    #[account(
-        init,
-        payer = creator,
-        mint::decimals = xyber_params::DECIMALS,
-        mint::authority = xyber_token
-    )]
-    pub mint: Box<Account<'info, Mint>>,
+    /// CHECK: Minted by the factory
+    #[account(mut)]
+    pub mint: UncheckedAccount<'info>,
 
-    #[account(
-        init,
-        payer = creator,
-        associated_token::mint = mint,
-        associated_token::authority = xyber_token
-    )]
-    pub vault_token_account: Box<Account<'info, TokenAccount>>,
+    /// CHECK: Factory-created ATA for minted tokens
+    #[account(mut)]
+    pub vault_token_account: UncheckedAccount<'info>,
 
-    #[account(
-        init_if_needed,
-        payer = creator,
-        associated_token::mint = mint,
-        associated_token::authority = creator
-    )]
-    pub creator_token_account: Box<Account<'info, TokenAccount>>,
-
-    // Accounts for the CPI call to token_factory:
-    /// CHECK: Account for storing token metadata.
+    /// CHECK: Metadata account created by the factory
     #[account(mut)]
     pub metadata_account: UncheckedAccount<'info>,
 
     pub rent: Sysvar<'info, Rent>,
-
     pub token_metadata_program: Program<'info, anchor_spl::metadata::Metadata>,
-
     pub token_program: Program<'info, Token>,
 
-    pub associated_token_program: Program<'info, AssociatedToken>,
+    /// CHECK: Verified via address constraint
+    #[account(address = anchor_spl::associated_token::ID)]
+    pub associated_token_program: UncheckedAccount<'info>,
 
     pub system_program: Program<'info, System>,
 
-    /// token_factory program (connected via Cargo.toml with the "cpi" feature enabled)
+    /// External factory program
     pub token_factory_program: Program<'info, token_factory::program::TokenFactory>,
 }
 
@@ -74,18 +55,9 @@ pub fn init_and_mint_full_supply_instruction(
 ) -> Result<()> {
     let total_supply = ctx.accounts.xyber_token.bonding_curve.a_total_tokens;
 
-    // 1. Update the core state with the mint and vault addresses.
-    {
-        let token = &mut ctx.accounts.xyber_token;
-        token.mint = ctx.accounts.mint.key();
-        token.vault = ctx.accounts.vault_token_account.key();
-    }
-
-    // 2. Convert the seed to a Vec<u8> of length 32.
     let token_seed_vec = ctx.accounts.token_seed.key().to_bytes().to_vec();
     require_eq!(token_seed_vec.len(), 32, CustomError::InvalidSeed);
 
-    // 3. Assemble the CPI context for calling token_factory.
     let cpi_accounts = CreateAndMintToken {
         payer: ctx.accounts.creator.to_account_info(),
         vault_owner: ctx.accounts.xyber_token.to_account_info(),
@@ -102,7 +74,6 @@ pub fn init_and_mint_full_supply_instruction(
     let cpi_program = ctx.accounts.token_factory_program.to_account_info();
     let cpi_ctx = CpiContext::new(cpi_program, cpi_accounts);
 
-    // 4. Call the token_factory function to create and mint the token.
     cpi::create_and_mint_token(
         cpi_ctx,
         token_seed_vec,
@@ -112,6 +83,10 @@ pub fn init_and_mint_full_supply_instruction(
         symbol,
         uri,
     )?;
+
+    let xyber_token = &mut ctx.accounts.xyber_token;
+    xyber_token.mint = ctx.accounts.mint.key();
+    xyber_token.vault = ctx.accounts.vault_token_account.key();
 
     Ok(())
 }

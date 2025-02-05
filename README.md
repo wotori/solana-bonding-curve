@@ -94,8 +94,9 @@ solana address --keypair ~/.config/solana/devnet-buyer.json
 
 Get current balance
 ```
-solana address --keypair ~/.config/solana/devnet-owner.json | solana balance
-solana address --keypair ~/.config/solana/devnet-buyer.json | solana balance
+solana address --keypair ~/.config/solana/devnet-owner.json | xargs solana balance
+
+solana address --keypair ~/.config/solana/devnet-buyer.json | xargs solana balance
 ```
 
 ---
