@@ -1,15 +1,15 @@
-use anchor_lang::prelude::*;
-use anchor_spl::associated_token::AssociatedToken;
-use anchor_spl::token::{
-    self, spl_token::instruction::AuthorityType, Mint, MintTo, SetAuthority, Token, TokenAccount,
-};
-
+use crate::errors::CustomError;
 use crate::xyber_params;
 use crate::XyberToken;
+use anchor_lang::prelude::*;
+use anchor_spl::associated_token::AssociatedToken;
+use anchor_spl::token::{Mint, Token, TokenAccount};
+
+use token_factory::cpi;
+use token_factory::cpi::accounts::CreateAndMintToken;
 
 #[derive(Accounts)]
 pub struct InitAndMint<'info> {
-    // Re-derive the PDA using the same seeds.
     #[account(
         mut,
         seeds = [b"xyber_token", creator.key().as_ref(), token_seed.key().as_ref()],
@@ -17,7 +17,7 @@ pub struct InitAndMint<'info> {
     )]
     pub xyber_token: Account<'info, XyberToken>,
 
-    /// CHECK: Used solely as a seed for PDA derivation.
+    /// CHECK: Used solely for PDA derivation.
     pub token_seed: AccountInfo<'info>,
 
     #[account(mut)]
@@ -47,58 +47,70 @@ pub struct InitAndMint<'info> {
     )]
     pub creator_token_account: Box<Account<'info, TokenAccount>>,
 
-    // Program accounts (small, so unboxed is fine)
-    pub associated_token_program: Program<'info, AssociatedToken>,
+    // Accounts for the CPI call to token_factory:
+    /// CHECK: Account for storing token metadata.
+    #[account(mut)]
+    pub metadata_account: UncheckedAccount<'info>,
+
+    pub rent: Sysvar<'info, Rent>,
+
+    pub token_metadata_program: Program<'info, anchor_spl::metadata::Metadata>,
+
     pub token_program: Program<'info, Token>,
+
+    pub associated_token_program: Program<'info, AssociatedToken>,
+
     pub system_program: Program<'info, System>,
+
+    /// token_factory program (connected via Cargo.toml with the "cpi" feature enabled)
+    pub token_factory_program: Program<'info, token_factory::program::TokenFactory>,
 }
 
-pub fn init_and_mint_full_supply_instruction(ctx: Context<InitAndMint>) -> Result<()> {
-    // 1. Retrieve the total supply from the core state (a_total_tokens) stored earlier.
+pub fn init_and_mint_full_supply_instruction(
+    ctx: Context<InitAndMint>,
+    name: String,
+    symbol: String,
+    uri: String,
+) -> Result<()> {
     let total_supply = ctx.accounts.xyber_token.bonding_curve.a_total_tokens;
 
-    // 2. Update the core state with the addresses of the heavy accounts.
+    // 1. Update the core state with the mint and vault addresses.
     {
         let token = &mut ctx.accounts.xyber_token;
         token.mint = ctx.accounts.mint.key();
         token.vault = ctx.accounts.vault_token_account.key();
     }
 
-    // 3. Retrieve the bump and construct the seeds array.
-    let bump = ctx.bumps.xyber_token;
-    let seeds = &[
-        b"xyber_token".as_ref(),
-        ctx.accounts.creator.key.as_ref(),
-        ctx.accounts.token_seed.key.as_ref(),
-        &[bump],
-    ];
+    // 2. Convert the seed to a Vec<u8> of length 32.
+    let token_seed_vec = ctx.accounts.token_seed.key().to_bytes().to_vec();
+    require_eq!(token_seed_vec.len(), 32, CustomError::InvalidSeed);
 
-    // 4. Mint the total supply into the vault token account using the PDA as mint authority.
-    token::mint_to(
-        CpiContext::new_with_signer(
-            ctx.accounts.token_program.to_account_info(),
-            MintTo {
-                mint: ctx.accounts.mint.to_account_info(),
-                to: ctx.accounts.vault_token_account.to_account_info(),
-                authority: ctx.accounts.xyber_token.to_account_info(),
-            },
-            &[seeds],
-        ),
+    // 3. Assemble the CPI context for calling token_factory.
+    let cpi_accounts = CreateAndMintToken {
+        payer: ctx.accounts.creator.to_account_info(),
+        vault_owner: ctx.accounts.xyber_token.to_account_info(),
+        mint: ctx.accounts.mint.to_account_info(),
+        token_vault: ctx.accounts.vault_token_account.to_account_info(),
+        metadata_account: ctx.accounts.metadata_account.to_account_info(),
+        rent: ctx.accounts.rent.to_account_info(),
+        token_metadata_program: ctx.accounts.token_metadata_program.to_account_info(),
+        token_program: ctx.accounts.token_program.to_account_info(),
+        associated_token_program: ctx.accounts.associated_token_program.to_account_info(),
+        system_program: ctx.accounts.system_program.to_account_info(),
+    };
+
+    let cpi_program = ctx.accounts.token_factory_program.to_account_info();
+    let cpi_ctx = CpiContext::new(cpi_program, cpi_accounts);
+
+    // 4. Call the token_factory function to create and mint the token.
+    cpi::create_and_mint_token(
+        cpi_ctx,
+        token_seed_vec,
+        xyber_params::DECIMALS,
         total_supply,
-    )?;
-
-    // 5. Remove the mint authority (set it to None) so no further tokens can be minted.
-    token::set_authority(
-        CpiContext::new_with_signer(
-            ctx.accounts.token_program.to_account_info(),
-            SetAuthority {
-                account_or_mint: ctx.accounts.mint.to_account_info(),
-                current_authority: ctx.accounts.xyber_token.to_account_info(),
-            },
-            &[seeds],
-        ),
-        AuthorityType::MintTokens,
-        None,
+        name,
+        symbol,
+        uri,
     )?;
 
     Ok(())

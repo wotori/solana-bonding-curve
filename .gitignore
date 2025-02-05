@@ -11,4 +11,4 @@ local
 target-deploy-keypair.json
 tests/bonding_curve_cache.json
 
-.txt
+*.txt

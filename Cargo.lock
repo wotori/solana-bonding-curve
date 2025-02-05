@@ -1805,6 +1805,7 @@ dependencies = [
  "anchor-lang",
  "anchor-spl",
  "borsh 0.10.4",
+ "token_factory",
 ]
 
 [[package]]
@@ -2368,6 +2369,15 @@ name = "tinyvec_macros"
 version = "0.1.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "1f3ccbac311fea05f86f61904b462b55fb3df8837a366dfc601a0161d0532f20"
+
+[[package]]
+name = "token_factory"
+version = "0.1.0"
+source = "git+https://gitlab.xyber-labs.com/xyber/ets/uts-solana.git?branch=develop#4ea4d8cbc63eb22c1328962aed52c32790741009"
+dependencies = [
+ "anchor-lang",
+ "anchor-spl",
+]
 
 [[package]]
 name = "toml"

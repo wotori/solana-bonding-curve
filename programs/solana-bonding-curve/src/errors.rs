@@ -22,4 +22,7 @@ pub enum CustomError {
 
     #[msg("Token has graduated: The bonding curve is no longer active as the token is now listed on a DEX.")]
     TokenIsGraduated,
+
+    #[msg("Invalid seed: the provided seed must be exactly 32 bytes in length.")]
+    InvalidSeed,
 }

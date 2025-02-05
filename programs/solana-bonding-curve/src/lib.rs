@@ -55,9 +55,12 @@ pub mod bonding_curve {
 
     // 1.1 CREATE TOKEN
     pub fn init_and_mint_full_supply_instruction(
-        ctx: Context<InitAndMint>
+        ctx: Context<InitAndMint>,
+        name: String,
+        symbol: String,
+        uri: String,
     ) -> Result<()> {
-        instructions::init_and_mint_full_supply_instruction(ctx)
+        instructions::init_and_mint_full_supply_instruction(ctx, name, symbol, uri)
     }
 
     // 1.2 MINT INITIAL TOKENS
@@ -66,16 +69,6 @@ pub mod bonding_curve {
         deposit_lamports: u64,
     ) -> Result<()> {
         instructions::mint_initial_tokens_instruction(ctx, deposit_lamports)
-    }
-
-    // (1.3) SET METADATA
-    pub fn set_metadata_instruction(
-        ctx: Context<SetMetadata>,
-        name: String,
-        symbol: String,
-        uri: String,
-    ) -> Result<()> {
-        instructions::set_metadata_instruction(ctx, name, symbol, uri)
     }
 
     pub fn buy_exact_input_instruction(ctx: Context<BuyToken>, lamports: u64) -> Result<()> {
