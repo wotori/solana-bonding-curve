@@ -8,4 +8,7 @@ test-ledger
 .yarn
 
 local
-target-deploy-keypair.json
+target-deploy-keypair*.json
+tests/bonding_curve_cache.json
+
+*.txt

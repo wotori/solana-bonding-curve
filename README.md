@@ -35,7 +35,7 @@ This visualization demonstrates how the bonding curve evolves as more base asset
 This test suite runs through a **three-step** scenario to verify the bonding curve logic, ensuring all the main operations function as intended:
 
 1. **Create + Init Escrow + Mint Initial + Set Metadata**
-   - [x] Generates new PDAs (OwnedToken, Escrow, Metadata)
+   - [x] Generates new PDAs (XyberToken, Escrow, Metadata)
    - [x] Creates the mint and associated token account (ATA) for the creator
    - [x] Mints initial tokens using the bonding curve
    - [x] Sets on-chain metadata (token name, symbol, URI)
@@ -44,7 +44,7 @@ This test suite runs through a **three-step** scenario to verify the bonding cur
    - [x] Creates/buys tokens with 0.001 SOL deposit
    - [x] Checks that a buyer ATA is properly initialized (via `init_if_needed`)
    - [x] Verifies minted tokens in buyer’s ATA
-   - [x] Ensures `OwnedToken` supply is decreased in “raw token” units, matching minted base units
+   - [x] Ensures `XyberToken` supply is decreased in “raw token” units, matching minted base units
 
 3. **Buyer Sells Tokens**
    - [x] Burns half of the buyer’s tokens 
@@ -94,8 +94,9 @@ solana address --keypair ~/.config/solana/devnet-buyer.json
 
 Get current balance
 ```
-solana address --keypair ~/.config/solana/devnet-owner.json | solana balance
-solana address --keypair ~/.config/solana/devnet-buyer.json | solana balance
+solana address --keypair ~/.config/solana/devnet-owner.json | xargs solana balance
+
+solana address --keypair ~/.config/solana/devnet-buyer.json | xargs solana balance
 ```
 
 ---
@@ -156,4 +157,20 @@ make test-dev
 ### 9. Standard Testing (Localnet Auto-Spawned)
 ```bash
 anchor test
+```
+
+
+## Platform Initialisation Pump.Fun Example
+```
+pub static DECIMALS: u8 = 9;
+
+pub static TOTAL_TOKENS: u64 = 1_073_000_191;
+pub static VIRTUAL_POOL_OFFSET: u64 = 30 * LAMPORTS_PER_SOL;
+pub static BONDING_SCALE_FACTOR: u128 = 32_190_005_730 * (LAMPORTS_PER_SOL as u128);
+pub static ACCEPTED_BASE_MINT: Pubkey = Pubkey::from_str("CThXy1nb8YgSDjKpWRn4znasTbEdmXggJ9hoHEMdYfiQ").unwrap();
+```
+
+## Logs
+```
+solana logs GH5c6RihMrseCqDGToAmEEAHGkdSSU9MSdrsaghnErCV --url devnet
 ```

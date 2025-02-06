@@ -1,0 +1,14 @@
+use anchor_lang::{prelude::Pubkey, AnchorDeserialize, AnchorSerialize};
+
+use crate::curves::SmoothBondingCurve;
+
+pub static DECIMALS: u8 = 9;
+
+#[derive(AnchorSerialize, AnchorDeserialize, Clone)]
+pub struct CreateTokenParams {
+    pub token_supply: u64,
+    pub bonding_curve: SmoothBondingCurve,
+    pub accepted_base_mint: Pubkey,
+    pub admin: Pubkey,
+    pub graduate_dollars_amount: u32,
+}
