@@ -74,11 +74,12 @@ pub fn init_and_mint_full_supply_instruction(
     let cpi_program = ctx.accounts.token_factory_program.to_account_info();
     let cpi_ctx = CpiContext::new(cpi_program, cpi_accounts);
 
+    let raw_total_supply = total_supply * 10u64.pow(xyber_params::DECIMALS as u32); // TODO: pass from XyberToken states
     cpi::create_and_mint_token(
         cpi_ctx,
         token_seed_vec,
         xyber_params::DECIMALS,
-        total_supply,
+        raw_total_supply,
         name,
         symbol,
         uri,

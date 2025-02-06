@@ -29,7 +29,6 @@ pub fn init_token_core_instruction(
     params: CreateTokenParams,
 ) -> Result<()> {
     let token = &mut ctx.accounts.xyber_token;
-    token.grad_threshold = params.token_grad_thr_usd;
     token.accepted_base_mint = params.accepted_base_mint;
     token.bonding_curve = SmoothBondingCurve {
         a_total_tokens: params.bonding_curve.a_total_tokens,

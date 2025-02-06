@@ -89,6 +89,9 @@ pub fn buy_exact_input_instruction(ctx: Context<BuyToken>, payment_amount: u64) 
         .bonding_curve
         .buy_exact_input(payment_amount)?;
 
+    msg!("buy_exact_input tokens_u128 = {:?}", tokens_u128);
+    msg!("Vault amount = {}", ctx.accounts.vault_token_account.amount);
+
     // Check that the vault can actually cover this.
     require!(
         tokens_u128 <= ctx.accounts.vault_token_account.amount,
@@ -108,9 +111,12 @@ pub fn buy_exact_input_instruction(ctx: Context<BuyToken>, payment_amount: u64) 
 
     // 2.5) Check if the escrow now holds enough base tokens
     // to trigger graduation. If so, update is_graduated.
-    if ctx.accounts.escrow_token_account.amount
-        >= ctx.accounts.xyber_token.graduate_dollars_amount as u64
-    {
+
+    let real_escrow_tokens = ctx.accounts.escrow_token_account.amount as f64
+        / 10_f64.powi(ctx.accounts.payment_mint.decimals.into());
+
+    let price = 0.05; // TODO: read from Oracle
+    if real_escrow_tokens * price >= ctx.accounts.xyber_token.graduate_dollars_amount as f64 {
         ctx.accounts.xyber_token.is_graduated = true;
         emit!(GraduationTriggered {
             buyer: ctx.accounts.buyer.key(),
@@ -186,10 +192,11 @@ pub fn buy_exact_output_instruction(ctx: Context<BuyToken>, tokens_out: u64) -> 
 
     // 3.5) Check if the escrow now holds enough base tokens
     // to trigger graduation. If so, update is_graduated.
+    let real_escrow_tokens = ctx.accounts.escrow_token_account.amount as f64
+        / 10_f64.powi(ctx.accounts.payment_mint.decimals.into());
+
     let price = 0.05; // TODO: read from Oracle
-    if ctx.accounts.escrow_token_account.amount as f64 * price
-        >= ctx.accounts.xyber_token.graduate_dollars_amount as f64
-    {
+    if real_escrow_tokens * price >= ctx.accounts.xyber_token.graduate_dollars_amount as f64 {
         ctx.accounts.xyber_token.is_graduated = true;
         emit!(GraduationTriggered {
             buyer: ctx.accounts.buyer.key(),

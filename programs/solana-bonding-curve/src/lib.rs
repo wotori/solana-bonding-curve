@@ -11,7 +11,7 @@ use crate::xyber_params::CreateTokenParams;
 use curves::SmoothBondingCurve;
 use instructions::*;
 
-declare_id!("GMjvbDmasN1FyYD6iGfj5u8EETdk9gTQnyoZUQA4PVGT");
+declare_id!("GH5c6RihMrseCqDGToAmEEAHGkdSSU9MSdrsaghnErCV");
 
 #[account]
 pub struct XyberToken {
