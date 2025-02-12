@@ -25,4 +25,7 @@ pub enum CustomError {
 
     #[msg("Invalid seed: the provided seed must be exactly 32 bytes in length.")]
     InvalidSeed,
+
+    #[msg("Slippage exceeded user-defined limit.")]
+    SlippageExceeded,
 }

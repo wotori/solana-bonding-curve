@@ -71,12 +71,12 @@ pub mod bonding_curve {
         instructions::mint_initial_tokens_instruction(ctx, deposit_lamports)
     }
 
-    pub fn buy_exact_input_instruction(ctx: Context<BuyToken>, lamports: u64) -> Result<()> {
-        instructions::buy_exact_input_instruction(ctx, lamports)
+    pub fn buy_exact_input_instruction(ctx: Context<BuyToken>, base_in: u64, expected_tokens_out: u64, slippage_bps: u16) -> Result<()> {
+        instructions::buy_exact_input_instruction(ctx, base_in, expected_tokens_out, slippage_bps)
     }
 
-    pub fn buy_exact_output_instruction(ctx: Context<BuyToken>, tokens_out: u64) -> Result<()> {
-        instructions::buy_exact_output_instruction(ctx, tokens_out)
+    pub fn buy_exact_output_instruction(ctx: Context<BuyToken>, tokens_out: u64, expected_payment_amount: u64, slippage_bps: u16) -> Result<()> {
+        instructions::buy_exact_output_instruction(ctx, tokens_out, expected_payment_amount, slippage_bps)
     }
 
     pub fn sell_exact_input_instruction(
