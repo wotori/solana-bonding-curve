@@ -72,8 +72,7 @@ pub struct BuyToken<'info> {
 pub fn buy_exact_input_instruction(
     ctx: Context<BuyToken>,
     payment_amount: u64,
-    expected_tokens_out: u64,
-    slippage_bps: u16,
+    min_amount_out: u64,
 ) -> Result<()> {
     // 0) Reject if graduated.
     require!(
@@ -81,7 +80,7 @@ pub fn buy_exact_input_instruction(
         CustomError::TokenIsGraduated
     );
 
-    // 1) Determine the token amount for payment_amount.
+    // 1) Determine the token amount for `payment_amount`.
     let actual_tokens_out = ctx
         .accounts
         .xyber_token
@@ -94,28 +93,20 @@ pub fn buy_exact_input_instruction(
     );
     msg!("Vault amount = {}", ctx.accounts.vault_token_account.amount);
 
-    // Only revert if actual < expected and difference exceeds slippage.
-    if actual_tokens_out < expected_tokens_out {
-        let diff = expected_tokens_out
-            .checked_sub(actual_tokens_out)
-            .ok_or(CustomError::MathOverflow)?;
+    // 2) Enforce `actual_tokens_out >= min_amount_out`.
+    //    (The front end will handle slippage and supply a proper `min_amount_out`.)
+    require!(
+        actual_tokens_out >= min_amount_out,
+        CustomError::SlippageExceeded
+    );
 
-        let max_allowed_diff = (expected_tokens_out as u128)
-            .checked_mul(slippage_bps as u128)
-            .ok_or(CustomError::MathOverflow)?
-            .checked_div(10_000)
-            .ok_or(CustomError::MathOverflow)? as u64;
-
-        require!(diff <= max_allowed_diff, CustomError::SlippageExceeded);
-    }
-
-    // Check vault balance.
+    // 3) Check vault balance.
     require!(
         actual_tokens_out <= ctx.accounts.vault_token_account.amount,
         CustomError::InsufficientTokenVaultBalance
     );
 
-    // 2) Transfer buyer’s payment.
+    // 4) Transfer the buyer’s payment from `buyer_payment_account` -> `escrow_token_account`.
     let transfer_payment_ctx = CpiContext::new(
         ctx.accounts.token_program.to_account_info(),
         Transfer {
@@ -126,10 +117,10 @@ pub fn buy_exact_input_instruction(
     );
     token::transfer(transfer_payment_ctx, payment_amount)?;
 
-    // 2.5) Check graduation.
+    // 5) Check graduation condition.
     let real_escrow_tokens = ctx.accounts.escrow_token_account.amount as f64
         / 10_f64.powi(ctx.accounts.payment_mint.decimals.into());
-    let price = 0.05; // TODO: read from Oracle
+    let price = 0.05; // TODO: read from Oracle or keep it fixed for now
     if real_escrow_tokens * price >= ctx.accounts.xyber_token.graduate_dollars_amount as f64 {
         ctx.accounts.xyber_token.is_graduated = true;
         emit!(GraduationTriggered {
@@ -138,9 +129,8 @@ pub fn buy_exact_input_instruction(
         });
     }
 
-
-    let tokens_u64 = actual_tokens_out;
-    let token_amount_with_decimals = tokens_u64
+    // 6) Transfer `actual_tokens_out` from the vault to the buyer, accounting for decimals.
+    let token_amount_with_decimals = actual_tokens_out
         .checked_mul(10_u64.pow(ctx.accounts.mint.decimals as u32))
         .ok_or(CustomError::MathOverflow)?;
 
@@ -173,8 +163,7 @@ pub fn buy_exact_input_instruction(
 pub fn buy_exact_output_instruction(
     ctx: Context<BuyToken>,
     tokens_out: u64,
-    expected_payment_amount: u64,
-    slippage_bps: u16,
+    max_payment_amount: u64,
 ) -> Result<()> {
     // 0) Reject if graduated.
     require!(
@@ -182,35 +171,26 @@ pub fn buy_exact_output_instruction(
         CustomError::TokenIsGraduated
     );
 
-    // 1) Calculate how many payment tokens are needed for tokens_out.
+    // 1) Calculate how many payment tokens are needed for `tokens_out`.
     let payment_required = ctx
         .accounts
         .xyber_token
         .bonding_curve
         .buy_exact_output(tokens_out)?;
 
-    // Only revert if payment_required > expected and difference exceeds slippage.
-    if payment_required > expected_payment_amount {
-        let diff = payment_required
-            .checked_sub(expected_payment_amount)
-            .ok_or(CustomError::MathOverflow)?;
+    // 2) Enforce `payment_required <= max_payment_amount`.
+    require!(
+        payment_required <= max_payment_amount,
+        CustomError::SlippageExceeded
+    );
 
-        let max_allowed_diff = (expected_payment_amount as u128)
-            .checked_mul(slippage_bps as u128)
-            .ok_or(CustomError::MathOverflow)?
-            .checked_div(10_000)
-            .ok_or(CustomError::MathOverflow)? as u64;
-
-        require!(diff <= max_allowed_diff, CustomError::SlippageExceeded);
-    }
-
-    // 2) Check vault balance.
+    // 3) Check vault balance.
     require!(
         (tokens_out as u128) <= ctx.accounts.vault_token_account.amount as u128,
         CustomError::InsufficientTokenVaultBalance
     );
 
-    // 3) Transfer payment from buyer -> escrow.
+    // 4) Transfer payment from buyer -> escrow.
     let transfer_payment_ctx = CpiContext::new(
         ctx.accounts.token_program.to_account_info(),
         Transfer {
@@ -221,10 +201,10 @@ pub fn buy_exact_output_instruction(
     );
     token::transfer(transfer_payment_ctx, payment_required)?;
 
-    // 3.5) Check graduation.
+    // 5) Check graduation.
     let real_escrow_tokens = ctx.accounts.escrow_token_account.amount as f64
         / 10_f64.powi(ctx.accounts.payment_mint.decimals.into());
-    let price = 0.05; // TODO: read from Oracle
+    let price = 0.05; // TODO: read from Oracle or keep it fixed for now
     if real_escrow_tokens * price >= ctx.accounts.xyber_token.graduate_dollars_amount as f64 {
         ctx.accounts.xyber_token.is_graduated = true;
         emit!(GraduationTriggered {
@@ -233,7 +213,7 @@ pub fn buy_exact_output_instruction(
         });
     }
 
-    // 4) Transfer tokens_out (scaled) from vault -> buyer.
+    // 6) Transfer tokens_out (scaled) from vault -> buyer.
     let decimals = ctx.accounts.mint.decimals as u32;
     let tokens_out_scaled = tokens_out
         .checked_mul(10_u64.pow(decimals))
