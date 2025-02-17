@@ -2,14 +2,22 @@ use anchor_lang::prelude::*;
 use anchor_spl::token::{self, Token, TokenAccount, Transfer};
 
 use crate::errors::CustomError;
-use crate::XyberToken;
+use crate::{XyberCore, XyberToken};
 
 #[derive(Accounts)]
 pub struct WithdrawLiquidity<'info> {
     /// Admin allowed to withdraw liquidity
-    #[account(mut, signer)]
+    #[account(mut)]
     /// CHECK: admin account
-    pub admin: AccountInfo<'info>,
+    pub admin: Signer<'info>,
+
+    #[account(
+        mut,
+        has_one = admin,
+        seeds = [b"xyber_core"],
+        bump
+    )]
+    pub xyber_core: Account<'info, XyberCore>,
 
     #[account(
         mut,
@@ -36,11 +44,6 @@ pub struct WithdrawLiquidity<'info> {
 }
 
 pub fn withdraw_liquidity(ctx: Context<WithdrawLiquidity>, amount: u64) -> Result<()> {
-    require!(
-        ctx.accounts.admin.key() == ctx.accounts.xyber_token.admin,
-        CustomError::Unauthorized
-    );
-
     require!(
         ctx.accounts.xyber_token.is_graduated,
         CustomError::LiquidityNotGraduated

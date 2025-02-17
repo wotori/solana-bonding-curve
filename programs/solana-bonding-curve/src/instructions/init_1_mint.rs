@@ -1,5 +1,7 @@
 use crate::errors::CustomError;
 use crate::xyber_params;
+use crate::xyber_params::TokenParams;
+use crate::XyberCore;
 use crate::XyberToken;
 use anchor_lang::prelude::*;
 use anchor_spl::token::Token;
@@ -14,6 +16,13 @@ pub struct InitAndMint<'info> {
         bump
     )]
     pub xyber_token: Account<'info, XyberToken>,
+
+    #[account(
+        mut,
+        seeds = [b"xyber_token"],
+        bump
+    )]
+    pub xyber_core: Account<'info, XyberCore>,
 
     /// CHECK: 32 bytes used for PDA derivation
     pub token_seed: AccountInfo<'info>,
@@ -47,13 +56,8 @@ pub struct InitAndMint<'info> {
     pub token_factory_program: Program<'info, token_factory::program::TokenFactory>,
 }
 
-pub fn init_and_mint_full_supply_instruction(
-    ctx: Context<InitAndMint>,
-    name: String,
-    symbol: String,
-    uri: String,
-) -> Result<()> {
-    let total_supply = ctx.accounts.xyber_token.bonding_curve.a_total_tokens;
+pub fn mint_full_supply_instruction(ctx: Context<InitAndMint>, params: TokenParams) -> Result<()> {
+    let total_supply = ctx.accounts.xyber_core.bonding_curve.a_total_tokens;
 
     let token_seed_vec = ctx.accounts.token_seed.key().to_bytes().to_vec();
     require_eq!(token_seed_vec.len(), 32, CustomError::InvalidSeed);
@@ -80,9 +84,9 @@ pub fn init_and_mint_full_supply_instruction(
         token_seed_vec,
         xyber_params::DECIMALS,
         raw_total_supply,
-        name,
-        symbol,
-        uri,
+        params.name,
+        params.symbol,
+        params.uri,
     )?;
 
     let xyber_token = &mut ctx.accounts.xyber_token;

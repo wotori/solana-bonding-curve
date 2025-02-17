@@ -6,6 +6,7 @@ use anchor_spl::token::{self, Mint, Token, TokenAccount, Transfer};
 use crate::curves::BondingCurveTrait;
 use crate::errors::CustomError;
 use crate::events::GraduationTriggered;
+use crate::XyberCore;
 use crate::XyberToken;
 
 #[derive(Accounts)]
@@ -18,6 +19,13 @@ pub struct BuyToken<'info> {
 
     /// CHECK: Creator account.
     pub creator: UncheckedAccount<'info>,
+
+    #[account(
+        mut,
+        seeds = [b"xyber_core"],
+        bump
+    )]
+    pub xyber_core: Account<'info, XyberCore>,
 
     #[account(
         mut,
@@ -83,7 +91,7 @@ pub fn buy_exact_input_instruction(
     // 1) Determine the token amount for `payment_amount`.
     let actual_tokens_out = ctx
         .accounts
-        .xyber_token
+        .xyber_core
         .bonding_curve
         .buy_exact_input(payment_amount)?;
 
@@ -121,7 +129,7 @@ pub fn buy_exact_input_instruction(
     let real_escrow_tokens = ctx.accounts.escrow_token_account.amount as f64
         / 10_f64.powi(ctx.accounts.payment_mint.decimals.into());
     let price = 0.05; // TODO: read from Oracle or keep it fixed for now
-    if real_escrow_tokens * price >= ctx.accounts.xyber_token.graduate_dollars_amount as f64 {
+    if real_escrow_tokens * price >= ctx.accounts.xyber_core.graduate_dollars_amount as f64 {
         ctx.accounts.xyber_token.is_graduated = true;
         emit!(GraduationTriggered {
             buyer: ctx.accounts.buyer.key(),
@@ -174,7 +182,7 @@ pub fn buy_exact_output_instruction(
     // 1) Calculate how many payment tokens are needed for `tokens_out`.
     let payment_required = ctx
         .accounts
-        .xyber_token
+        .xyber_core
         .bonding_curve
         .buy_exact_output(tokens_out)?;
 
@@ -205,7 +213,7 @@ pub fn buy_exact_output_instruction(
     let real_escrow_tokens = ctx.accounts.escrow_token_account.amount as f64
         / 10_f64.powi(ctx.accounts.payment_mint.decimals.into());
     let price = 0.05; // TODO: read from Oracle or keep it fixed for now
-    if real_escrow_tokens * price >= ctx.accounts.xyber_token.graduate_dollars_amount as f64 {
+    if real_escrow_tokens * price >= ctx.accounts.xyber_core.graduate_dollars_amount as f64 {
         ctx.accounts.xyber_token.is_graduated = true;
         emit!(GraduationTriggered {
             buyer: ctx.accounts.buyer.key(),

@@ -85,6 +85,7 @@ describe("Bonding Curve Program (Token Init + Buyer/Seller Flow)", () => {
   // 2) Variables / PDAs
   let tokenSeedKeypair: Keypair;
   let xyberTokenPda: PublicKey;
+  let xyberCorePda: PublicKey;
   let mintPda: PublicKey;
   let vaultTokenAccount: PublicKey;
   let creatorTokenAccount: PublicKey;
@@ -94,6 +95,15 @@ describe("Bonding Curve Program (Token Init + Buyer/Seller Flow)", () => {
   // Derive PDAs in before() hook
   before("Derive all PDAs", async () => {
     tokenSeedKeypair = Keypair.generate();
+
+    // XyberCore PDA
+    [xyberCorePda] = PublicKey.findProgramAddressSync(
+      [
+        Buffer.from("xyber_core"),
+        creatorKeypair.publicKey.toBuffer(),
+      ],
+      program.programId
+    );
 
     // XyberToken PDA
     [xyberTokenPda] = PublicKey.findProgramAddressSync(
@@ -150,8 +160,8 @@ describe("Bonding Curve Program (Token Init + Buyer/Seller Flow)", () => {
   it("1.1) init_core_instruction", async () => {
     console.log("----- Step 1: init_core_instruction -----");
     const createTokenParams = {
-      tokenSupply: TOTAL_TOKENS,
-      tokenGradThrUsd: 999, // example threshold
+      admin: creatorKeypair.publicKey,
+      gradThreshold: 1000,
       bondingCurve: {
         aTotalTokens: TOTAL_TOKENS,
         kVirtualPoolOffset: BONDING_K_VIRTUAL,
@@ -159,16 +169,14 @@ describe("Bonding Curve Program (Token Init + Buyer/Seller Flow)", () => {
         xTotalBaseDeposit: new BN(0),
       },
       acceptedBaseMint: PAYMENT_MINT_PUBKEY,
-      admin: creatorKeypair.publicKey,
       graduateDollarsAmount: GRADUATE_DOLLARS_AMOUNT,
     };
 
     const ixCore = await program.methods
-      .initCoreInstruction(createTokenParams)
+      .setupXyberCoreInstruction(createTokenParams)
       .accounts({
-        tokenSeed: tokenSeedKeypair.publicKey,
-        creator: creatorKeypair.publicKey,
-        xyberToken: xyberTokenPda,
+        signer: creatorKeypair.publicKey,
+        xyberCore: xyberTokenPda,
         systemProgram: SystemProgram.programId,
       })
       .signers([creatorKeypair])
@@ -186,11 +194,13 @@ describe("Bonding Curve Program (Token Init + Buyer/Seller Flow)", () => {
   });
 
   // 3.2) init_and_mint_full_supply_instruction
-  it("1.2) init_and_mint_full_supply_instruction", async () => {
+  it("1.2) mint_full_supply_instruction", async () => {
     console.log("----- Step 2: init_and_mint_full_supply_instruction -----");
 
     const ixMintFullSupply = await program.methods
-      .initAndMintFullSupplyInstruction(tokenName, tokenSymbol, tokenUri)
+      .mintFullSupplyInstruction({
+        name: tokenName, symbol: tokenSymbol, uri: tokenUri
+      })
       .accounts({
         xyberToken: xyberTokenPda,
         tokenSeed: tokenSeedKeypair.publicKey,
@@ -237,7 +247,7 @@ describe("Bonding Curve Program (Token Init + Buyer/Seller Flow)", () => {
     );
 
     const ixMintInitial = await program.methods
-      .mintInitialTokensInstruction(depositLamports)
+      .initialBuyTokensInstruction(depositLamports)
       .accounts({
         tokenSeed: tokenSeedKeypair.publicKey,
         creator: creatorKeypair.publicKey,
@@ -287,10 +297,11 @@ describe("Bonding Curve Program (Token Init + Buyer/Seller Flow)", () => {
 
     // 3) Buyer pays
     const baseIn = new BN(0.001 * LAMPORTS_PER_TOKEN);
+    const expectedOut = new BN(0.001 * LAMPORTS_PER_TOKEN);
 
     // 4) Call the instruction
     await program.methods
-      .buyExactInputInstruction(baseIn)
+      .buyExactInputInstruction(baseIn, expectedOut)
       .accounts({
         tokenSeed: tokenSeedKeypair.publicKey,
         buyer: buyerKeypair.publicKey,
@@ -395,6 +406,7 @@ describe("Bonding Curve Program (Token Init + Buyer/Seller Flow)", () => {
 
     // 1) Suppose buyer wants exactly 10 unscaled tokens
     const tokensOutWanted = new BN(10);
+    const tokensOutExpected = new BN(10);
 
     // 2) Check buyer's current raw balance
     const buyerAtaInfoBefore = await getAccount(connection, buyerTokenAccount);
@@ -402,7 +414,7 @@ describe("Bonding Curve Program (Token Init + Buyer/Seller Flow)", () => {
 
     // 3) Buy instruction
     await program.methods
-      .buyExactOutputInstruction(tokensOutWanted)
+      .buyExactOutputInstruction(tokensOutWanted, tokensOutExpected)
       .accounts({
         tokenSeed: tokenSeedKeypair.publicKey,
         buyer: buyerKeypair.publicKey,
