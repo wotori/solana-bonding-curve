@@ -172,5 +172,5 @@ pub static ACCEPTED_BASE_MINT: Pubkey = Pubkey::from_str("CThXy1nb8YgSDjKpWRn4zn
 
 ## Logs
 ```
-solana logs GH5c6RihMrseCqDGToAmEEAHGkdSSU9MSdrsaghnErCV --url devnet
+solana logs 7TtWm2z8uixrGbxhkT1SYZfWfbiAJEg7zRaozUh46v2C --url devnet
 ```

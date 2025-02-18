@@ -10,16 +10,21 @@ use token_factory::cpi::accounts::CreateAndMintToken;
 
 #[derive(Accounts)]
 pub struct InitAndMint<'info> {
+    #[account(mut)]
+    pub payer: Signer<'info>,
+
     #[account(
-        mut,
-        seeds = [b"xyber_token", creator.key().as_ref(), token_seed.key().as_ref()],
-        bump
+        init,
+        payer = payer,
+        seeds = [b"xyber_token", payer.key().as_ref(), token_seed.key().as_ref()],
+        bump,
+        space = XyberToken::LEN
     )]
     pub xyber_token: Account<'info, XyberToken>,
 
     #[account(
         mut,
-        seeds = [b"xyber_token"],
+        seeds = [b"xyber_core"],
         bump
     )]
     pub xyber_core: Account<'info, XyberCore>,

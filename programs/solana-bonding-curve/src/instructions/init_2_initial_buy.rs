@@ -17,7 +17,7 @@ pub struct MintInitialTokens<'info> {
 
     #[account(
         mut,
-        seeds = [b"xyber_core", creator.key().as_ref()],
+        seeds = [b"xyber_core"],
         bump
     )]
     pub xyber_core: Account<'info, XyberCore>,
