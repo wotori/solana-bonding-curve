@@ -6,6 +6,7 @@ use anchor_spl::token::{self, Mint, Token, TokenAccount, Transfer};
 use crate::curves::BondingCurveTrait;
 use crate::errors::CustomError;
 use crate::events::GraduationTriggered;
+use crate::XyberCore;
 use crate::XyberToken;
 
 #[derive(Accounts)]
@@ -21,12 +22,18 @@ pub struct BuyToken<'info> {
 
     #[account(
         mut,
+        seeds = [b"xyber_core"],
+        bump
+    )]
+    pub xyber_core: Account<'info, XyberCore>,
+
+    #[account(
+        mut,
         seeds = [b"xyber_token", creator.key().as_ref(), token_seed.key().as_ref()],
         bump
     )]
     pub xyber_token: Box<Account<'info, XyberToken>>,
 
-    // Payment escrow: collects the payment tokens (e.g. XBT)
     #[account(
         mut,
         associated_token::mint = payment_mint,
@@ -34,14 +41,11 @@ pub struct BuyToken<'info> {
     )]
     pub escrow_token_account: Box<Account<'info, TokenAccount>>,
 
-    // Payment token mint.
     pub payment_mint: Box<Account<'info, Mint>>,
 
-    // Custom token mint.
     #[account(mut)]
     pub mint: Box<Account<'info, Mint>>,
 
-    // The vault holding *all* tokens.
     #[account(
         mut,
         associated_token::mint = mint,
@@ -49,7 +53,6 @@ pub struct BuyToken<'info> {
     )]
     pub vault_token_account: Box<Account<'info, TokenAccount>>,
 
-    // Buyer's token account (destination of the purchased tokens).
     #[account(
         init_if_needed,
         payer = buyer,
@@ -58,7 +61,6 @@ pub struct BuyToken<'info> {
     )]
     pub buyer_token_account: Box<Account<'info, TokenAccount>>,
 
-    // Buyer's payment account (the tokens they pay with).
     #[account(
         init_if_needed,
         payer = buyer,
@@ -75,30 +77,44 @@ pub struct BuyToken<'info> {
     pub system_program: UncheckedAccount<'info>,
 }
 
-pub fn buy_exact_input_instruction(ctx: Context<BuyToken>, payment_amount: u64) -> Result<()> {
-    // 0) Reject any buy attempts if token is already graduated.
+pub fn buy_exact_input_instruction(
+    ctx: Context<BuyToken>,
+    payment_amount: u64,
+    min_amount_out: u64,
+) -> Result<()> {
+    // 0) Reject if graduated.
     require!(
         !ctx.accounts.xyber_token.is_graduated,
         CustomError::TokenIsGraduated
     );
 
-    // 1) Determine the token amount the buyer gets for `payment_amount`.
-    let tokens_u128 = ctx
+    // 1) Determine the token amount for `payment_amount`.
+    let actual_tokens_out = ctx
         .accounts
-        .xyber_token
+        .xyber_core
         .bonding_curve
         .buy_exact_input(payment_amount)?;
 
-    msg!("buy_exact_input tokens_u128 = {:?}", tokens_u128);
+    msg!(
+        "buy_exact_input actual_tokens_out = {:?}",
+        actual_tokens_out
+    );
     msg!("Vault amount = {}", ctx.accounts.vault_token_account.amount);
 
-    // Check that the vault can actually cover this.
+    // 2) Enforce `actual_tokens_out >= min_amount_out`.
+    //    (The front end will handle slippage and supply a proper `min_amount_out`.)
     require!(
-        tokens_u128 <= ctx.accounts.vault_token_account.amount,
+        actual_tokens_out >= min_amount_out,
+        CustomError::SlippageExceeded
+    );
+
+    // 3) Check vault balance.
+    require!(
+        actual_tokens_out <= ctx.accounts.vault_token_account.amount,
         CustomError::InsufficientTokenVaultBalance
     );
 
-    // 2) Transfer the buyer’s payment to escrow.
+    // 4) Transfer the buyer’s payment from `buyer_payment_account` -> `escrow_token_account`.
     let transfer_payment_ctx = CpiContext::new(
         ctx.accounts.token_program.to_account_info(),
         Transfer {
@@ -109,14 +125,11 @@ pub fn buy_exact_input_instruction(ctx: Context<BuyToken>, payment_amount: u64) 
     );
     token::transfer(transfer_payment_ctx, payment_amount)?;
 
-    // 2.5) Check if the escrow now holds enough base tokens
-    // to trigger graduation. If so, update is_graduated.
-
+    // 5) Check graduation condition.
     let real_escrow_tokens = ctx.accounts.escrow_token_account.amount as f64
         / 10_f64.powi(ctx.accounts.payment_mint.decimals.into());
-
-    let price = 0.05; // TODO: read from Oracle
-    if real_escrow_tokens * price >= ctx.accounts.xyber_token.graduate_dollars_amount as f64 {
+    let price = 0.05; // TODO: read from Oracle or keep it fixed for now
+    if real_escrow_tokens * price >= ctx.accounts.xyber_core.graduate_dollars_amount as f64 {
         ctx.accounts.xyber_token.is_graduated = true;
         emit!(GraduationTriggered {
             buyer: ctx.accounts.buyer.key(),
@@ -124,19 +137,15 @@ pub fn buy_exact_input_instruction(ctx: Context<BuyToken>, payment_amount: u64) 
         });
     }
 
-    // 3) Transfer project tokens out of the vault to the buyer.
-    // Scale up by decimals, as bonding curve logic is in "whole token" units.
-    let tokens_u64 = tokens_u128 as u64;
-    let token_amount_with_decimals = tokens_u64
+    // 6) Transfer `actual_tokens_out` from the vault to the buyer, accounting for decimals.
+    let token_amount_with_decimals = actual_tokens_out
         .checked_mul(10_u64.pow(ctx.accounts.mint.decimals as u32))
         .ok_or(CustomError::MathOverflow)?;
 
-    // Store keys and bump so we don’t create temporary references.
     let creator_key = ctx.accounts.creator.key();
     let token_seed_key = ctx.accounts.token_seed.key();
     let xyber_token_bump = ctx.bumps.xyber_token;
 
-    // Create the seeds array and wrap in a slice of slices.
     let seeds: [&[u8]; 4] = [
         b"xyber_token",
         creator_key.as_ref(),
@@ -159,8 +168,12 @@ pub fn buy_exact_input_instruction(ctx: Context<BuyToken>, payment_amount: u64) 
     Ok(())
 }
 
-pub fn buy_exact_output_instruction(ctx: Context<BuyToken>, tokens_out: u64) -> Result<()> {
-    // 0) Reject any buy attempts if token is already graduated.
+pub fn buy_exact_output_instruction(
+    ctx: Context<BuyToken>,
+    tokens_out: u64,
+    max_payment_amount: u64,
+) -> Result<()> {
+    // 0) Reject if graduated.
     require!(
         !ctx.accounts.xyber_token.is_graduated,
         CustomError::TokenIsGraduated
@@ -169,17 +182,23 @@ pub fn buy_exact_output_instruction(ctx: Context<BuyToken>, tokens_out: u64) -> 
     // 1) Calculate how many payment tokens are needed for `tokens_out`.
     let payment_required = ctx
         .accounts
-        .xyber_token
+        .xyber_core
         .bonding_curve
         .buy_exact_output(tokens_out)?;
 
-    // 2) Check vault balance.
+    // 2) Enforce `payment_required <= max_payment_amount`.
+    require!(
+        payment_required <= max_payment_amount,
+        CustomError::SlippageExceeded
+    );
+
+    // 3) Check vault balance.
     require!(
         (tokens_out as u128) <= ctx.accounts.vault_token_account.amount as u128,
         CustomError::InsufficientTokenVaultBalance
     );
 
-    // 3) Transfer payment from buyer -> escrow.
+    // 4) Transfer payment from buyer -> escrow.
     let transfer_payment_ctx = CpiContext::new(
         ctx.accounts.token_program.to_account_info(),
         Transfer {
@@ -190,13 +209,11 @@ pub fn buy_exact_output_instruction(ctx: Context<BuyToken>, tokens_out: u64) -> 
     );
     token::transfer(transfer_payment_ctx, payment_required)?;
 
-    // 3.5) Check if the escrow now holds enough base tokens
-    // to trigger graduation. If so, update is_graduated.
+    // 5) Check graduation.
     let real_escrow_tokens = ctx.accounts.escrow_token_account.amount as f64
         / 10_f64.powi(ctx.accounts.payment_mint.decimals.into());
-
-    let price = 0.05; // TODO: read from Oracle
-    if real_escrow_tokens * price >= ctx.accounts.xyber_token.graduate_dollars_amount as f64 {
+    let price = 0.05; // TODO: read from Oracle or keep it fixed for now
+    if real_escrow_tokens * price >= ctx.accounts.xyber_core.graduate_dollars_amount as f64 {
         ctx.accounts.xyber_token.is_graduated = true;
         emit!(GraduationTriggered {
             buyer: ctx.accounts.buyer.key(),
@@ -204,18 +221,16 @@ pub fn buy_exact_output_instruction(ctx: Context<BuyToken>, tokens_out: u64) -> 
         });
     }
 
-    // 4) Transfer tokens_out (scaled by decimals) from vault -> buyer.
+    // 6) Transfer tokens_out (scaled) from vault -> buyer.
     let decimals = ctx.accounts.mint.decimals as u32;
     let tokens_out_scaled = tokens_out
         .checked_mul(10_u64.pow(decimals))
         .ok_or(CustomError::MathOverflow)?;
 
-    // Store keys and bump.
     let creator_key = ctx.accounts.creator.key();
     let token_seed_key = ctx.accounts.token_seed.key();
     let xyber_token_bump = ctx.bumps.xyber_token;
 
-    // Create seeds array and wrap in a slice.
     let seeds: [&[u8]; 4] = [
         b"xyber_token",
         creator_key.as_ref(),

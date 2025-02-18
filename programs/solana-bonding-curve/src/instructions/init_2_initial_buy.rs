@@ -3,7 +3,7 @@ use anchor_spl::token::{self, Mint, Token, TokenAccount, Transfer};
 
 use crate::curves::BondingCurveTrait;
 use crate::errors::CustomError;
-use crate::XyberToken;
+use crate::{XyberCore, XyberToken};
 
 #[derive(Accounts)]
 #[instruction(deposit_amount: u64)]
@@ -14,6 +14,13 @@ pub struct MintInitialTokens<'info> {
 
     #[account(mut)]
     pub creator: Signer<'info>,
+
+    #[account(
+        mut,
+        seeds = [b"xyber_core"],
+        bump
+    )]
+    pub xyber_core: Account<'info, XyberCore>,
 
     #[account(
         mut,
@@ -67,7 +74,7 @@ pub struct MintInitialTokens<'info> {
     pub system_program: Program<'info, System>,
 }
 
-pub fn mint_initial_tokens_instruction(
+pub fn initial_buy_tokens_instruction(
     ctx: Context<MintInitialTokens>,
     deposit_amount: u64,
 ) -> Result<()> {
@@ -87,7 +94,7 @@ pub fn mint_initial_tokens_instruction(
     msg!("DEBUG: Calling buy_exact_input() in the bonding curve...");
     let tokens_out_u128 = ctx
         .accounts
-        .xyber_token
+        .xyber_core
         .bonding_curve
         .buy_exact_input(deposit_amount)?;
     msg!(

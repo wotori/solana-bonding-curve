@@ -172,12 +172,12 @@ mod tests {
             x_total_base_deposit: 0,
         };
 
-        let base_in = (0.001 * LAMPORTS_PER_SOL as f64) as u64;
+        let base_in = (10 * LAMPORTS_PER_SOL) as u64;
         let minted = curve.buy_exact_input(base_in).unwrap();
         println!("minted: {}", minted);
 
         assert!(
-            (34_600..36_700).contains(&minted),
+            (265_250_048..270_250_048).contains(&minted),
             "Minted tokens out of expected range: {}",
             minted
         );

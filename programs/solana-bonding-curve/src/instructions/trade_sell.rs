@@ -5,6 +5,7 @@ use anchor_spl::token::{self, Mint, Token, TokenAccount, Transfer};
 
 use crate::curves::BondingCurveTrait;
 use crate::errors::CustomError;
+use crate::XyberCore;
 use crate::XyberToken;
 
 #[derive(Accounts)]
@@ -18,6 +19,13 @@ pub struct SellToken<'info> {
 
     /// CHECK: Creator account
     pub creator: UncheckedAccount<'info>,
+
+    #[account(
+        mut,
+        seeds = [b"xyber_core"],
+        bump
+    )]
+    pub xyber_core: Account<'info, XyberCore>,
 
     #[account(
         mut,
@@ -100,7 +108,7 @@ pub fn sell_exact_input_instruction(ctx: Context<SellToken>, user_token_amount: 
     // 3) Calculate how many payment (base) tokens the user should receive.
     let base_token_amount = ctx
         .accounts
-        .xyber_token
+        .xyber_core
         .bonding_curve
         .sell_exact_input(user_token_amount)?;
 
@@ -150,7 +158,7 @@ pub fn sell_exact_output_instruction(
     // 1) Calculate how many user tokens are required to receive the requested base tokens.
     let user_tokens_required = ctx
         .accounts
-        .xyber_token
+        .xyber_core
         .bonding_curve
         .sell_exact_output(base_tokens_requested)?;
 
