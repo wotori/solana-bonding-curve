@@ -1,40 +1,42 @@
 // src/actions.ts
 import { BN } from "@project-serum/anchor";
-import { PublicKey, SystemProgram, Connection, Transaction } from "@solana/web3.js";
-import { getAssociatedTokenAddress } from "@solana/spl-token";
+import {
+    PublicKey,
+    SystemProgram,
+    Connection,
+    Transaction
+} from "@solana/web3.js";
+import {
+    TOKEN_PROGRAM_ID,
+    ASSOCIATED_TOKEN_PROGRAM_ID,
+    getAssociatedTokenAddress
+} from "@solana/spl-token";
 import { program } from "./setup";
-import { TOKEN_PROGRAM_ID } from "@solana/spl-token";
 
-// === Из вывода теста ("Dumping Key Info") ===
+// PDAs & Mints
+export const TOKEN_SEED_PUBKEY = new PublicKey("NoMZLvywWv7x3KyVHbMwp6kgMzjjyMuUQGgt1sh4VUH");
 export const XYBER_CORE_PDA = new PublicKey("HFrD8J1m9zc5qCzEmLDRmZQJ5vwMGfZ8LaYEHAKi8Bym");
-export const XYBER_TOKEN_PDA = new PublicKey("HskcNqNBC8CxcxbWy8Bh2aUBXHtfmAwbCtytM6UFqMUh");
-export const ESCROW_TOKEN_ACCOUNT_PDA = new PublicKey("iEnzy2CbmPrErU7ZJPRcwTeDqo9JPrVQ7cMa9wqktqR");
-export const VAULT_TOKEN_ACCOUNT_PDA = new PublicKey("9RqTjeKC84zAoHszb8Vzkr9UB9xEXddHchPJ7fuYfi3y");
+export const XYBER_TOKEN_PDA = new PublicKey("962ownUvqXXqArg6sgC9Kk6PPQ8uDSZiEbREByc21yq8");
+export const MINT_PDA = new PublicKey("sxkSLFk6tbfTcucsuSe2tuEJ1FGGgNhMbkujicWetBh");
+export const VAULT_TOKEN_ACCOUNT_PDA = new PublicKey("5u2vPR5nZgZGe2ppwgrZUyB4BXSeeFdTmZZRnAbQBJLF");
+export const ESCROW_TOKEN_ACCOUNT_PDA = new PublicKey("2joSWicyUq2mFhrTADoNNg4kjR2yQw59zqrwR5DuCBqW");
+export const CREATOR_PUBKEY = new PublicKey("FCMPSxbmyMugTRyfdGPNx4mdeAaVDcSnVaN3p82zBcT8");
+export const BUYER_PUBKEY = new PublicKey("CW97fy6bRvkuyTXkunu4A5Qi8VPMidncPm79EpgHtqZF");
 export const PAYMENT_MINT = new PublicKey("6WQQPDXsBxkgMwuApkXbV2bUf3CZAJmGBDqk62aMpmKR");
 
-// Из "Dump Info": mintPda =
-const MINT_PDA = new PublicKey("C7rkMEvztRWr9qkd8ZbpWkfNjsdPvxbL34NbTMxpEyr7");
-
-// Если инструкции где-то требуют "creator", это "FCMPSxbmyMugTRyfdGPNx4mdeAaVDcSnVaN3p82zBcT8" (админ)
-const CREATOR_PUBKEY = new PublicKey("FCMPSxbmyMugTRyfdGPNx4mdeAaVDcSnVaN3p82zBcT8");
-
-// ------------------------------------------------------------------
-// 1) fetchCoreState
-// ------------------------------------------------------------------
+// Fetch core state
 export async function fetchCoreState() {
     try {
         const state = await program.account.xyberCore.fetch(XYBER_CORE_PDA);
-        console.log("Current XYBER CORE state:", state);
+        console.log("XYBER CORE state:", state);
         return state;
     } catch (err) {
-        console.error("Failed to fetchCoreState:", err);
+        console.error("fetchCoreState error:", err);
         throw err;
     }
 }
 
-// ------------------------------------------------------------------
-// 2) updateCoreParams
-// ------------------------------------------------------------------
+// Update core params
 export async function updateCoreParams(
     publicKey: PublicKey,
     sendTransaction: (tx: Transaction, conn: Connection) => Promise<string>,
@@ -54,16 +56,15 @@ export async function updateCoreParams(
     }
 ) {
     try {
-        // Собираем структуру bondingCurve
         const bc = {
-            aTotalTokens: new BN(aTotalTokens), // строка -> BN
+            aTotalTokens: new BN(aTotalTokens),
             kVirtualPoolOffset: new BN(kVirtualPoolOffset).mul(new BN(10 ** 9)),
             cBondingScaleFactor: new BN(cBondingScaleFactor).mul(new BN(10 ** 9)),
             xTotalBaseDeposit: new BN(0),
         };
 
         const params = {
-            admin: publicKey, // кто вызывает
+            admin: publicKey,
             gradThreshold,
             bondingCurve: bc,
             acceptedBaseMint: PAYMENT_MINT,
@@ -79,7 +80,7 @@ export async function updateCoreParams(
             .transaction();
 
         const txSig = await sendTransaction(transaction, connection);
-        console.log("updateCoreParams => txSig:", txSig);
+        console.log("updateCoreParams =>", txSig);
         return txSig;
     } catch (err) {
         console.error("updateCoreParams error:", err);
@@ -87,9 +88,7 @@ export async function updateCoreParams(
     }
 }
 
-// ------------------------------------------------------------------
-// 3) exactBuy
-// ------------------------------------------------------------------
+// Exact Buy
 export async function exactBuy(
     publicKey: PublicKey,
     sendTransaction: (tx: Transaction, conn: Connection) => Promise<string>,
@@ -98,24 +97,19 @@ export async function exactBuy(
     expectedOut: number
 ) {
     try {
-        // baseIn, expectedOut в "целых" токенах, умножаем
         const baseInLamports = new BN(baseIn).mul(new BN(10 ** 9));
-        const expectedOutBN = new BN(expectedOut).mul(new BN(10 ** 9));
+        const expectedOutLamports = new BN(expectedOut).mul(new BN(10 ** 9));
 
-        // Buyer Payment ATA
         const buyerPaymentAccount = await getAssociatedTokenAddress(PAYMENT_MINT, publicKey);
-
-        // Buyer project-token ATA
         const buyerTokenAccount = await getAssociatedTokenAddress(MINT_PDA, publicKey);
 
-        // Формируем Transaction
         const transaction = await program.methods
-            .buyExactInputInstruction(baseInLamports, expectedOutBN)
+            .buyExactInputInstruction(baseInLamports, expectedOutLamports)
             .accounts({
                 xyberCore: XYBER_CORE_PDA,
-                tokenSeed: XYBER_TOKEN_PDA,       // "seed" в коде
+                tokenSeed: TOKEN_SEED_PUBKEY,
                 buyer: publicKey,
-                creator: CREATOR_PUBKEY,         // admin key (если нужно)
+                creator: CREATOR_PUBKEY,
                 xyberToken: XYBER_TOKEN_PDA,
                 escrowTokenAccount: ESCROW_TOKEN_ACCOUNT_PDA,
                 paymentMint: PAYMENT_MINT,
@@ -123,13 +117,14 @@ export async function exactBuy(
                 vaultTokenAccount: VAULT_TOKEN_ACCOUNT_PDA,
                 buyerTokenAccount,
                 buyerPaymentAccount,
-                systemProgram: SystemProgram.programId,
+                associatedTokenProgram: ASSOCIATED_TOKEN_PROGRAM_ID,
                 tokenProgram: TOKEN_PROGRAM_ID,
+                systemProgram: SystemProgram.programId,
             })
             .transaction();
 
         const txSig = await sendTransaction(transaction, connection);
-        console.log("exactBuy success, txSig =", txSig);
+        console.log("exactBuy =>", txSig);
         return txSig;
     } catch (err) {
         console.error("exactBuy error:", err);
@@ -137,9 +132,7 @@ export async function exactBuy(
     }
 }
 
-// ------------------------------------------------------------------
-// 4) exactSell
-// ------------------------------------------------------------------
+// Exact Sell
 export async function exactSell(
     publicKey: PublicKey,
     sendTransaction: (tx: Transaction, conn: Connection) => Promise<string>,
@@ -147,8 +140,8 @@ export async function exactSell(
     tokenAmount: number
 ) {
     try {
-        // продаём tokenAmount "целых" проект-токенов
-        const tokensToSell = new BN(tokenAmount).mul(new BN(10 ** 9));
+        // If user is typing unscaled tokens, do not multiply again:
+        const tokensToSell = new BN(tokenAmount);
 
         const userTokenAccount = await getAssociatedTokenAddress(MINT_PDA, publicKey);
         const userPaymentAccount = await getAssociatedTokenAddress(PAYMENT_MINT, publicKey);
@@ -157,9 +150,9 @@ export async function exactSell(
             .sellExactInputInstruction(tokensToSell)
             .accounts({
                 xyberCore: XYBER_CORE_PDA,
-                tokenSeed: XYBER_TOKEN_PDA,
+                tokenSeed: TOKEN_SEED_PUBKEY,
                 user: publicKey,
-                creator: CREATOR_PUBKEY, // admin key
+                creator: CREATOR_PUBKEY,
                 xyberToken: XYBER_TOKEN_PDA,
                 escrowTokenAccount: ESCROW_TOKEN_ACCOUNT_PDA,
                 paymentMint: PAYMENT_MINT,
@@ -167,13 +160,14 @@ export async function exactSell(
                 vaultTokenAccount: VAULT_TOKEN_ACCOUNT_PDA,
                 userTokenAccount,
                 userPaymentAccount,
-                systemProgram: SystemProgram.programId,
+                associatedTokenProgram: ASSOCIATED_TOKEN_PROGRAM_ID,
                 tokenProgram: TOKEN_PROGRAM_ID,
+                systemProgram: SystemProgram.programId,
             })
             .transaction();
 
         const txSig = await sendTransaction(transaction, connection);
-        console.log("exactSell success, txSig =", txSig);
+        console.log("exactSell =>", txSig);
         return txSig;
     } catch (err) {
         console.error("exactSell error:", err);

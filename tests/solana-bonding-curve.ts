@@ -632,6 +632,9 @@ describe("Bonding Curve Program (Token Init + Buyer/Seller Flow)", () => {
   it("1.9) Dump Info for Frontend", async () => {
     console.log("----- Dumping Key Info for Frontend -----");
 
+    // 0) The token seed public key (the most critical piece for front-end calls)
+    console.log("tokenSeedKeypair.publicKey =", tokenSeedKeypair.publicKey.toBase58());
+
     // 1) PDAs
     console.log("xyberCorePda =", xyberCorePda.toBase58());
     console.log("xyberTokenPda =", xyberTokenPda.toBase58());
@@ -639,11 +642,11 @@ describe("Bonding Curve Program (Token Init + Buyer/Seller Flow)", () => {
     console.log("vaultTokenAccount =", vaultTokenAccount.toBase58());
     console.log("escrowTokenAccount =", escrowTokenAccount.toBase58());
 
-    // 2)publicKey for creator & buyer
+    // 2) PublicKeys for creator & buyer
     console.log("creatorKeypair.publicKey =", creatorKeypair.publicKey.toBase58());
     console.log("buyerKeypair.publicKey =", buyerKeypair.publicKey.toBase58());
 
-    // 3) XyberCore / XyberToken state
+    // 3) XyberCore & XyberToken state
     const xyberCoreState = await program.account.xyberCore.fetch(xyberCorePda);
     const xyberTokenState = await program.account.xyberToken.fetch(xyberTokenPda);
 
@@ -653,15 +656,22 @@ describe("Bonding Curve Program (Token Init + Buyer/Seller Flow)", () => {
     console.log("== XyberToken State ==");
     console.log(JSON.stringify(xyberTokenState, null, 2));
 
-    // 4) Balances escrow & vault
+    // 4) Balances of escrow & vault
     const escrowInfo = await getAccount(connection, escrowTokenAccount);
     console.log("Escrow raw balance =", escrowInfo.amount.toString());
 
     const vaultInfo = await getAccount(connection, vaultTokenAccount);
     console.log("Vault raw balance =", vaultInfo.amount.toString());
 
-    const creatorAta = await getAssociatedTokenAddress(mintPda, creatorKeypair.publicKey);
-    const buyerAta = await getAssociatedTokenAddress(mintPda, buyerKeypair.publicKey);
+    // 5) Creator & Buyer ATA (for the minted project token)
+    const creatorAta = await getAssociatedTokenAddress(
+      mintPda,
+      creatorKeypair.publicKey
+    );
+    const buyerAta = await getAssociatedTokenAddress(
+      mintPda,
+      buyerKeypair.publicKey
+    );
 
     console.log("creatorTokenAccount =", creatorAta.toBase58());
     console.log("buyerTokenAccount =", buyerAta.toBase58());
