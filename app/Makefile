@@ -1,4 +1,4 @@
-ts-errors:
+ts-check:
 	npx tsc --noEmit
 
 clean:

@@ -8,7 +8,7 @@ import {
 } from "@solana/web3.js";
 import {
   getAssociatedTokenAddress,
-  getAccount, // for checking balances
+  getAccount,
   TOKEN_PROGRAM_ID,
   ASSOCIATED_TOKEN_PROGRAM_ID,
 } from "@solana/spl-token";
@@ -100,8 +100,6 @@ describe("Bonding Curve Program (Token Init + Buyer/Seller Flow)", () => {
 
   // Derive PDAs in before() hook
   before("Derive all PDAs", async () => {
-    tokenSeedKeypair = Keypair.generate();
-
     // XyberCore PDA
     [xyberCorePda] = PublicKey.findProgramAddressSync(
       [Buffer.from("xyber_core")],
@@ -109,6 +107,7 @@ describe("Bonding Curve Program (Token Init + Buyer/Seller Flow)", () => {
     );
 
     // XyberToken PDA
+    tokenSeedKeypair = Keypair.generate();
     [xyberTokenPda] = PublicKey.findProgramAddressSync(
       [
         Buffer.from("xyber_token"),
