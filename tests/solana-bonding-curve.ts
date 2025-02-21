@@ -578,7 +578,7 @@ describe("Bonding Curve Program (Token Init + Buyer/Seller Flow)", () => {
     const escrowBalanceRaw = escrowInfo.amount; // raw, scaled by base token decimals
     console.log("Escrow base token balance (raw) =", escrowBalanceRaw.toString());
 
-    // If your base token is also 9 decimals (like your project token),
+    // If base token is also 9 decimals
     // you can convert to a human-readable float:
     const BASE_TOKEN_DECIMALS = 9;
     const escrowBalanceHuman =
@@ -627,6 +627,52 @@ describe("Bonding Curve Program (Token Init + Buyer/Seller Flow)", () => {
 
     const buyerBalanceHuman = Number(buyerAtaInfo.amount) / 10 ** DECIMALS;
     console.log("Buyer project-token balance (human-readable) =", buyerBalanceHuman);
+  });
+
+  it("1.9) Dump Info for Frontend", async () => {
+    console.log("----- Dumping Key Info for Frontend -----");
+
+    // 1) PDAs
+    console.log("xyberCorePda =", xyberCorePda.toBase58());
+    console.log("xyberTokenPda =", xyberTokenPda.toBase58());
+    console.log("mintPda =", mintPda.toBase58());
+    console.log("vaultTokenAccount =", vaultTokenAccount.toBase58());
+    console.log("escrowTokenAccount =", escrowTokenAccount.toBase58());
+
+    // 2)publicKey for creator & buyer
+    console.log("creatorKeypair.publicKey =", creatorKeypair.publicKey.toBase58());
+    console.log("buyerKeypair.publicKey =", buyerKeypair.publicKey.toBase58());
+
+    // 3) XyberCore / XyberToken state
+    const xyberCoreState = await program.account.xyberCore.fetch(xyberCorePda);
+    const xyberTokenState = await program.account.xyberToken.fetch(xyberTokenPda);
+
+    console.log("== XyberCore State ==");
+    console.log(JSON.stringify(xyberCoreState, null, 2));
+
+    console.log("== XyberToken State ==");
+    console.log(JSON.stringify(xyberTokenState, null, 2));
+
+    // 4) Balances escrow & vault
+    const escrowInfo = await getAccount(connection, escrowTokenAccount);
+    console.log("Escrow raw balance =", escrowInfo.amount.toString());
+
+    const vaultInfo = await getAccount(connection, vaultTokenAccount);
+    console.log("Vault raw balance =", vaultInfo.amount.toString());
+
+    const creatorAta = await getAssociatedTokenAddress(mintPda, creatorKeypair.publicKey);
+    const buyerAta = await getAssociatedTokenAddress(mintPda, buyerKeypair.publicKey);
+
+    console.log("creatorTokenAccount =", creatorAta.toBase58());
+    console.log("buyerTokenAccount =", buyerAta.toBase58());
+
+    const creatorAtaInfo = await getAccount(connection, creatorAta);
+    const buyerAtaInfo = await getAccount(connection, buyerAta);
+
+    console.log("creator token balance (raw) =", creatorAtaInfo.amount.toString());
+    console.log("buyer token balance (raw) =", buyerAtaInfo.amount.toString());
+
+    console.log("----- End of Dump -----");
   });
 
 });
