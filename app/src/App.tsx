@@ -9,8 +9,6 @@ import {
 } from "./actions";
 import { useWallet, useConnection } from "@solana/wallet-adapter-react";
 import { WalletModalButton } from "@solana/wallet-adapter-react-ui";
-import { PublicKey } from "@solana/web3.js";
-import { BN } from "@project-serum/anchor";
 
 // For logging only — blindly treats alphanumeric as hex
 function bnReplacer(key: any, value: any) {
@@ -24,7 +22,6 @@ function bnReplacer(key: any, value: any) {
 
 export default function App() {
   const [log, setLog] = useState("");
-
 
   const wallet = useWallet();
   const { publicKey, sendTransaction } = wallet;

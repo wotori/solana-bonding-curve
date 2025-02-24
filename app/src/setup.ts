@@ -1,5 +1,5 @@
 import { AnchorProvider, Program, Idl } from "@coral-xyz/anchor";
-import { clusterApiUrl, Connection, PublicKey } from "@solana/web3.js";
+import { clusterApiUrl, Connection } from "@solana/web3.js";
 import idl from "../../target/idl/bonding_curve.json";
 import { BondingCurve } from "../../target/types/bonding_curve";
 import { WalletContextState } from '@solana/wallet-adapter-react';

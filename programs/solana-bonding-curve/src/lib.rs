@@ -50,9 +50,6 @@ impl XyberCore {
 /// One account per unique token. It holds only “token-specific” info.
 #[account]
 pub struct XyberToken {
-    // Which XyberCore does this token reference?
-    pub xyber_core: Pubkey,
-
     // Per-token graduation boolean
     pub is_graduated: bool,
 
@@ -61,14 +58,17 @@ pub struct XyberToken {
 
     // The vault that holds the minted tokens
     pub vault: Pubkey,
+
+    // The creator's Pubkey
+    pub creator: Pubkey,
 }
 
 impl XyberToken {
     pub const LEN: usize = 8  // Discriminator
-        + 32  // xyber_core
         + 1  // is_graduated
         + 32  // mint
-        + 32; // vault
+        + 32  // vault
+        + 32; // creator
 }
 #[program]
 pub mod bonding_curve {

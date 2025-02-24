@@ -13,7 +13,7 @@ import {
 } from "@solana/spl-token";
 import { getProgram } from "./setup";
 import { WalletContextState } from "@solana/wallet-adapter-react";
-import { deriveAddresses, getAssociatedAccounts } from "./utls";
+import { deriveAddresses, getAssociatedAccounts } from "./utils";
 
 
 // PDAs & Mints
@@ -202,6 +202,7 @@ export async function exactSell(
         throw err;
     }
 }
+
 export async function mintFullSupplyTx(
     tokenName: string,
     tokenSymbol: string,
@@ -218,7 +219,6 @@ export async function mintFullSupplyTx(
 ): Promise<Transaction> {
     const program = getProgram(wallet);
 
-    // Let Anchor build the transaction for us (same style as exactBuy)
     const transaction = program.methods
         .mintFullSupplyInstruction({
             name: tokenName,
@@ -323,7 +323,7 @@ export async function mintFullSupplyAndInitialBuyInOneTx(
             escrowTokenAccount,
             creatorTokenAccount,
             creatorPaymentAccount,
-            vaultTokenAccount
+            vaultTokenAccount,
         } = await getAssociatedAccounts(wallet, mintPda, xyberTokenPda);
 
         // a) Build the first transaction
