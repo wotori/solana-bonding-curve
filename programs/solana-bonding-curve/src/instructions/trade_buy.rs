@@ -17,9 +17,6 @@ pub struct BuyToken<'info> {
     #[account(mut)]
     pub buyer: Signer<'info>,
 
-    /// CHECK: Creator account.
-    pub creator: UncheckedAccount<'info>,
-
     #[account(
         mut,
         seeds = [b"xyber_core"],
@@ -29,10 +26,10 @@ pub struct BuyToken<'info> {
 
     #[account(
         mut,
-        seeds = [b"xyber_token", creator.key().as_ref(), token_seed.key().as_ref()],
+        seeds = [b"xyber_token", token_seed.key().as_ref()],
         bump
     )]
-    pub xyber_token: Box<Account<'info, XyberToken>>,
+    pub xyber_token: Account<'info, XyberToken>,
 
     #[account(
         mut,
@@ -148,16 +145,10 @@ pub fn buy_exact_input_instruction(
         .checked_mul(10_u64.pow(ctx.accounts.mint.decimals as u32))
         .ok_or(CustomError::MathOverflow)?;
 
-    let creator_key = ctx.accounts.creator.key();
     let token_seed_key = ctx.accounts.token_seed.key();
     let xyber_token_bump = ctx.bumps.xyber_token;
 
-    let seeds: [&[u8]; 4] = [
-        b"xyber_token",
-        creator_key.as_ref(),
-        token_seed_key.as_ref(),
-        &[xyber_token_bump],
-    ];
+    let seeds: [&[u8]; 3] = [b"xyber_token", token_seed_key.as_ref(), &[xyber_token_bump]];
     let signer_seeds = &[&seeds[..]];
 
     let vault_transfer_ctx = CpiContext::new_with_signer(
@@ -239,16 +230,10 @@ pub fn buy_exact_output_instruction(
         .checked_mul(10_u64.pow(decimals))
         .ok_or(CustomError::MathOverflow)?;
 
-    let creator_key = ctx.accounts.creator.key();
     let token_seed_key = ctx.accounts.token_seed.key();
     let xyber_token_bump = ctx.bumps.xyber_token;
 
-    let seeds: [&[u8]; 4] = [
-        b"xyber_token",
-        creator_key.as_ref(),
-        token_seed_key.as_ref(),
-        &[xyber_token_bump],
-    ];
+    let seeds: [&[u8]; 3] = [b"xyber_token", token_seed_key.as_ref(), &[xyber_token_bump]];
     let signer_seeds = &[&seeds[..]];
 
     let transfer_tokens_ctx = CpiContext::new_with_signer(

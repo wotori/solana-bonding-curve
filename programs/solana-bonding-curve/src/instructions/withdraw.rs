@@ -21,7 +21,7 @@ pub struct WithdrawLiquidity<'info> {
 
     #[account(
         mut,
-        seeds = [b"xyber_token", creator.key().as_ref(), token_seed.key().as_ref()],
+        seeds = [b"xyber_token", token_seed.key().as_ref()],
         bump
     )]
     pub xyber_token: Account<'info, XyberToken>,
@@ -54,7 +54,6 @@ pub fn withdraw_liquidity(ctx: Context<WithdrawLiquidity>, amount: u64) -> Resul
     let bump = ctx.bumps.xyber_token;
     let seeds = &[
         b"xyber_token".as_ref(),
-        ctx.accounts.creator.key.as_ref(),
         ctx.accounts.token_seed.key.as_ref(),
         &[bump],
     ];

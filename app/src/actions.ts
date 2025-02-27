@@ -63,12 +63,16 @@ export async function updateCoreParams(
     connection: Connection,
     wallet: WalletContextState,
     {
+        admin,
+        acceptedBaseMint,
         gradThreshold,
         graduateDollarsAmount,
         aTotalTokens,
         kVirtualPoolOffset,
         cBondingScaleFactor
     }: {
+        admin: PublicKey;
+        acceptedBaseMint: PublicKey;
         gradThreshold: number;
         graduateDollarsAmount: number;
         aTotalTokens: string;
@@ -83,11 +87,11 @@ export async function updateCoreParams(
             aTotalTokens: new BN(aTotalTokens),
             kVirtualPoolOffset: new BN(kVirtualPoolOffset).mul(new BN(10 ** 9)),
             cBondingScaleFactor: new BN(cBondingScaleFactor).mul(new BN(10 ** 9)),
-            xTotalBaseDeposit: new BN(0),
+            xTotalBaseDeposit: new BN(30),
         };
 
         const params = {
-            admin: publicKey,
+            admin,
             gradThreshold,
             bondingCurve: bc,
             acceptedBaseMint: PAYMENT_MINT,
@@ -226,11 +230,10 @@ export async function mintFullSupplyTx(
             uri: tokenUri,
         })
         .accounts({
-            payer: wallet.publicKey,
+            creator: wallet.publicKey,
             xyberToken: accounts.xyberTokenPda,
             xyberCore: accounts.xyberCorePda,
             tokenSeed: accounts.tokenSeedKeypair.publicKey,
-            creator: wallet.publicKey,
             mint: accounts.mintPda,
             vaultTokenAccount: accounts.vaultTokenAccount,
             metadataAccount: accounts.metadataPda,

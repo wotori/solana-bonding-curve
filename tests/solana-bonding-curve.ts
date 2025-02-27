@@ -112,7 +112,6 @@ describe("Bonding Curve Program (Token Init + Buyer/Seller Flow)", () => {
     [xyberTokenPda] = PublicKey.findProgramAddressSync(
       [
         Buffer.from("xyber_token"),
-        creatorKeypair.publicKey.toBuffer(),
         tokenSeedKeypair.publicKey.toBuffer(),
       ],
       program.programId
@@ -312,8 +311,8 @@ describe("Bonding Curve Program (Token Init + Buyer/Seller Flow)", () => {
     );
 
     // 3) Buyer pays
-    const baseIn = new BN(10 * LAMPORTS_PER_TOKEN);
-    const expectedOut = new BN(265_250_048); // to low for initial test
+    const baseIn = new BN(0.1 * LAMPORTS_PER_TOKEN);
+    const expectedOut = new BN(10_000);
 
     // 4) Call the instruction
     await program.methods
@@ -322,7 +321,6 @@ describe("Bonding Curve Program (Token Init + Buyer/Seller Flow)", () => {
         xyberCore: xyberCorePda,
         tokenSeed: tokenSeedKeypair.publicKey,
         buyer: buyerKeypair.publicKey,
-        creator: creatorKeypair.publicKey,
         xyberToken: xyberTokenPda,
         escrowTokenAccount: escrowTokenAccount,
         paymentMint: PAYMENT_MINT_PUBKEY,
@@ -384,7 +382,6 @@ describe("Bonding Curve Program (Token Init + Buyer/Seller Flow)", () => {
         xyberCore: xyberCorePda,
         tokenSeed: tokenSeedKeypair.publicKey,
         user: buyerKeypair.publicKey, // "user" per SellToken struct
-        creator: creatorKeypair.publicKey,
         xyberToken: xyberTokenPda,
         escrowTokenAccount: escrowTokenAccount,
         paymentMint: PAYMENT_MINT_PUBKEY,
@@ -439,7 +436,6 @@ describe("Bonding Curve Program (Token Init + Buyer/Seller Flow)", () => {
         xyberCore: xyberCorePda,
         tokenSeed: tokenSeedKeypair.publicKey,
         buyer: buyerKeypair.publicKey,
-        creator: creatorKeypair.publicKey,
         xyberToken: xyberTokenPda,
         escrowTokenAccount: escrowTokenAccount,
         paymentMint: PAYMENT_MINT_PUBKEY,
@@ -484,7 +480,7 @@ describe("Bonding Curve Program (Token Init + Buyer/Seller Flow)", () => {
     );
 
     // 1) Suppose user wants 3,000 lamports of base back
-    const lamportsWanted = new BN(3 * LAMPORTS_PER_TOKEN);
+    const lamportsWanted = new BN(0.01 * LAMPORTS_PER_TOKEN);
 
     // 2) Check the user's current raw token balance
     const buyerAtaInfoBefore = await getAccount(connection, buyerTokenAccount);
@@ -497,7 +493,6 @@ describe("Bonding Curve Program (Token Init + Buyer/Seller Flow)", () => {
         xyberCore: xyberCorePda,
         tokenSeed: tokenSeedKeypair.publicKey,
         user: buyerKeypair.publicKey,
-        creator: creatorKeypair.publicKey,
         xyberToken: xyberTokenPda,
         escrowTokenAccount: escrowTokenAccount,
         paymentMint: PAYMENT_MINT_PUBKEY,

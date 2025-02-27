@@ -18,7 +18,7 @@ pub struct InitAndMint<'info> {
     #[account(
         init,
         payer = creator,
-        seeds = [b"xyber_token", creator.key().as_ref(), token_seed.key().as_ref()],
+        seeds = [b"xyber_token", token_seed.key().as_ref()],
         bump,
         space = XyberToken::LEN
     )]

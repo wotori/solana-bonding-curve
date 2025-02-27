@@ -17,9 +17,6 @@ pub struct SellToken<'info> {
     #[account(mut)]
     pub user: Signer<'info>,
 
-    /// CHECK: Creator account
-    pub creator: UncheckedAccount<'info>,
-
     #[account(
         mut,
         seeds = [b"xyber_core"],
@@ -29,7 +26,7 @@ pub struct SellToken<'info> {
 
     #[account(
         mut,
-        seeds = [b"xyber_token", creator.key().as_ref(), token_seed.key().as_ref()],
+        seeds = [b"xyber_token", token_seed.key().as_ref()],
         bump
     )]
     pub xyber_token: Account<'info, XyberToken>,
@@ -125,16 +122,10 @@ pub fn sell_exact_input_instruction(ctx: Context<SellToken>, user_token_amount: 
     );
 
     // 4) Transfer base tokens from escrow to the user using the PDA signature.
-    let creator_key = ctx.accounts.creator.key();
     let token_seed_key = ctx.accounts.token_seed.key();
     let xyber_token_bump = ctx.bumps.xyber_token;
 
-    let seeds: [&[u8]; 4] = [
-        b"xyber_token",
-        creator_key.as_ref(),
-        token_seed_key.as_ref(),
-        &[xyber_token_bump],
-    ];
+    let seeds: [&[u8]; 3] = [b"xyber_token", token_seed_key.as_ref(), &[xyber_token_bump]];
     let signer_seeds = &[&seeds[..]];
 
     let escrow_to_user_ctx = CpiContext::new_with_signer(
@@ -197,16 +188,10 @@ pub fn sell_exact_output_instruction(
     );
 
     // 4) Transfer the requested base tokens from escrow to the user.
-    let creator_key = ctx.accounts.creator.key();
     let token_seed_key = ctx.accounts.token_seed.key();
     let xyber_token_bump = ctx.bumps.xyber_token;
 
-    let seeds: [&[u8]; 4] = [
-        b"xyber_token",
-        creator_key.as_ref(),
-        token_seed_key.as_ref(),
-        &[xyber_token_bump],
-    ];
+    let seeds: [&[u8]; 3] = [b"xyber_token", token_seed_key.as_ref(), &[xyber_token_bump]];
     let signer_seeds = &[&seeds[..]];
 
     let escrow_to_user_ctx = CpiContext::new_with_signer(

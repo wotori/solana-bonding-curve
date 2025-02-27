@@ -4,11 +4,11 @@ import {
   updateCoreParams,
   exactBuy,
   exactSell,
-  // 1) Import new combined function
   mintFullSupplyAndInitialBuyInOneTx
 } from "./actions";
 import { useWallet, useConnection } from "@solana/wallet-adapter-react";
 import { WalletModalButton } from "@solana/wallet-adapter-react-ui";
+import { PublicKey } from "@solana/web3.js";
 
 // For logging only — blindly treats alphanumeric as hex
 function bnReplacer(key: any, value: any) {
@@ -47,7 +47,6 @@ export default function App() {
         return;
       }
 
-      // same pattern as exactBuy
       const txSig = await mintFullSupplyAndInitialBuyInOneTx(
         sendTransaction,
         connection,
@@ -71,11 +70,17 @@ export default function App() {
   /******************************************
    * Existing Core Param + Buy/Sell Fields  *
    ******************************************/
+  // -- New fields for admin + acceptedMint (plus original bonding curve fields)
+  const [adminAddress, setAdminAddress] = useState(publicKey?.toBase58() || "");
+  const [acceptedBaseMint, setAcceptedBaseMint] = useState("");
+
   const [gradThreshold, setGradThreshold] = useState("1234");
   const [graduateDollarsAmount, setGraduateDollarsAmount] = useState("9999");
   const [aTotalTokens, setATotalTokens] = useState("1073000191");
   const [kVirtualPoolOffset, setKVirtualPoolOffset] = useState("32190005730");
   const [cBondingScaleFactor, setCBondingScaleFactor] = useState("30");
+
+  // Buy/Sell fields
   const [buyAmount, setBuyAmount] = useState("5");
   const [sellAmount, setSellAmount] = useState("2");
 
@@ -98,6 +103,10 @@ export default function App() {
       // Log for debugging
       setLog(JSON.stringify(raw, bnReplacer, 2));
 
+      // If the on-chain data includes admin & baseMint, prefill them
+      setAdminAddress(raw.admin?.toBase58() || publicKey?.toBase58() || "");
+      setAcceptedBaseMint(raw.acceptedBaseMint?.toBase58() || "");
+
       setGradThreshold(String(raw.gradThreshold || 0));
       setGraduateDollarsAmount(String(raw.graduateDollarsAmount || 0));
 
@@ -111,7 +120,7 @@ export default function App() {
     }
   }
 
-  // Update core parameters
+  // Update core parameters (with admin + acceptedMint + bonding curve fields)
   async function onUpdateCore() {
     if (!publicKey) {
       alert("Connect wallet first!");
@@ -124,6 +133,8 @@ export default function App() {
         connection,
         wallet,
         {
+          admin: new PublicKey(adminAddress),
+          acceptedBaseMint: new PublicKey(acceptedBaseMint),
           gradThreshold: Number(gradThreshold),
           graduateDollarsAmount: Number(graduateDollarsAmount),
           aTotalTokens,
@@ -262,10 +273,28 @@ export default function App() {
         <button onClick={onFetchCore}>Fetch XyberCore</button>
       </section>
 
-      {/* 3) Update Core Params */}
+      {/* 3) Update Core Params (Include admin + baseMint) */}
       <section style={{ border: "1px solid #ccc", padding: "10px", marginBottom: "20px" }}>
         <h2>Update Core Params</h2>
         <div style={{ display: "flex", flexDirection: "column", gap: "0.5rem" }}>
+          <label>
+            Admin Address:
+            <input
+              type="text"
+              value={adminAddress}
+              onChange={(e) => setAdminAddress(e.target.value)}
+              style={{ marginLeft: "1rem" }}
+            />
+          </label>
+          <label>
+            Accepted Base Mint (Token Address):
+            <input
+              type="text"
+              value={acceptedBaseMint}
+              onChange={(e) => setAcceptedBaseMint(e.target.value)}
+              style={{ marginLeft: "1rem" }}
+            />
+          </label>
           <label>
             gradThreshold:
             <input
