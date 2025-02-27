@@ -88,6 +88,12 @@ pub fn sell_exact_input_instruction(ctx: Context<SellToken>, user_token_amount: 
         CustomError::TokenIsGraduated
     );
 
+    require_keys_eq!(
+        ctx.accounts.payment_mint.key(),
+        ctx.accounts.xyber_core.accepted_base_mint,
+        CustomError::WrongPaymentMint
+    );
+
     // 1) Scale the user token amount by the mint decimals.
     let decimal_factor = ctx.accounts.mint.decimals as u32;
     let tokens_to_transfer = user_token_amount
@@ -153,6 +159,12 @@ pub fn sell_exact_output_instruction(
     require!(
         !ctx.accounts.xyber_token.is_graduated,
         CustomError::TokenIsGraduated
+    );
+
+    require_keys_eq!(
+        ctx.accounts.payment_mint.key(),
+        ctx.accounts.xyber_core.accepted_base_mint,
+        CustomError::WrongPaymentMint
     );
 
     // 1) Calculate how many user tokens are required to receive the requested base tokens.

@@ -88,6 +88,12 @@ pub fn buy_exact_input_instruction(
         CustomError::TokenIsGraduated
     );
 
+    require_keys_eq!(
+        ctx.accounts.payment_mint.key(),
+        ctx.accounts.xyber_core.accepted_base_mint,
+        CustomError::WrongPaymentMint
+    );
+
     // 1) Determine the token amount for `payment_amount`.
     let actual_tokens_out = ctx
         .accounts
@@ -177,6 +183,12 @@ pub fn buy_exact_output_instruction(
     require!(
         !ctx.accounts.xyber_token.is_graduated,
         CustomError::TokenIsGraduated
+    );
+
+    require_keys_eq!(
+        ctx.accounts.payment_mint.key(),
+        ctx.accounts.xyber_core.accepted_base_mint,
+        CustomError::WrongPaymentMint
     );
 
     // 1) Calculate how many payment tokens are needed for `tokens_out`.

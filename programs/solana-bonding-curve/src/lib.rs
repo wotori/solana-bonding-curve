@@ -11,7 +11,7 @@ use crate::xyber_params::{InitCoreParams, TokenParams};
 use curves::SmoothBondingCurve;
 use instructions::*;
 
-declare_id!("7TtWm2z8uixrGbxhkT1SYZfWfbiAJEg7zRaozUh46v2C");
+declare_id!("BdHFqKoxuP3nFChJU7uLx39CJMF88SxH5ZkX4oZ5YqcD");
 
 /// The sixbte, global state for all tokens.
 #[account]
@@ -96,14 +96,6 @@ pub mod bonding_curve {
         params: TokenParams,
     ) -> Result<()> {
         instructions::mint_full_supply_instruction(ctx, params)
-    }
-
-    // 1.2 MINT INITIAL TOKENS
-    pub fn initial_buy_tokens_instruction(
-        ctx: Context<MintInitialTokens>,
-        deposit_lamports: u64,
-    ) -> Result<()> {
-        instructions::initial_buy_tokens_instruction(ctx, deposit_lamports)
     }
 
     pub fn buy_exact_input_instruction(

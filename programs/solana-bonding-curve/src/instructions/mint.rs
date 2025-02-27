@@ -4,7 +4,9 @@ use crate::xyber_params::TokenParams;
 use crate::XyberCore;
 use crate::XyberToken;
 use anchor_lang::prelude::*;
+use anchor_spl::token::Mint;
 use anchor_spl::token::Token;
+use anchor_spl::token::TokenAccount;
 use token_factory::cpi;
 use token_factory::cpi::accounts::CreateAndMintToken;
 
@@ -39,6 +41,17 @@ pub struct InitAndMint<'info> {
     /// CHECK: Factory-created ATA for minted tokens
     #[account(mut)]
     pub vault_token_account: UncheckedAccount<'info>,
+
+    #[account(
+        init,
+        payer = creator,
+        associated_token::mint = payment_mint,
+        associated_token::authority = xyber_token,
+    )]
+    pub escrow_token_account: Box<Account<'info, TokenAccount>>,
+
+    #[account()]
+    pub payment_mint: Box<Account<'info, Mint>>,
 
     /// CHECK: Metadata account created by the factory
     #[account(mut)]
