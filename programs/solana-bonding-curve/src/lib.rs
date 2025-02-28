@@ -40,8 +40,7 @@ impl XyberCore {
         // a_total_tokens: u64 -> 8 bytes
         // k_virtual_pool_offset: u128 -> 16 bytes
         // c_bonding_scale_factor: u64 -> 8 bytes
-        // x_total_base_deposit: u64 -> 8 bytes
-        // In total: 8 + 16 + 8 + 8 = 40
+        // In total: 8 + 16 + 8 + 8 = 32
         + 40  // bonding_curve
         + 32  // accepted_base_mint (Pubkey)
         + 4; // graduate_dollars_amount (u32)

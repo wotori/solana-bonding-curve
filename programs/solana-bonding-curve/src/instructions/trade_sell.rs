@@ -109,11 +109,12 @@ pub fn sell_exact_input_instruction(ctx: Context<SellToken>, user_token_amount: 
     token::transfer(user_to_vault_ctx, tokens_to_transfer)?;
 
     // 3) Calculate how many payment (base) tokens the user should receive.
-    let base_token_amount = ctx
+    let escrow_balance = ctx.accounts.escrow_token_account.amount;
+    let (base_token_amount, _new_x) = ctx
         .accounts
         .xyber_core
         .bonding_curve
-        .sell_exact_input(user_token_amount)?;
+        .sell_exact_input(escrow_balance, user_token_amount)?;
 
     // Ensure the escrow holds enough base tokens.
     require!(
@@ -159,11 +160,12 @@ pub fn sell_exact_output_instruction(
     );
 
     // 1) Calculate how many user tokens are required to receive the requested base tokens.
-    let user_tokens_required = ctx
+    let escrow_balance = ctx.accounts.escrow_token_account.amount;
+    let (user_tokens_required, _new_x) = ctx
         .accounts
         .xyber_core
         .bonding_curve
-        .sell_exact_output(base_tokens_requested)?;
+        .sell_exact_output(escrow_balance, base_tokens_requested)?;
 
     let decimal_factor = ctx.accounts.mint.decimals as u32;
     let user_tokens_required_scaled = user_tokens_required

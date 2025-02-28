@@ -15,36 +15,8 @@ import {
 import { assert } from "chai";
 import path from "path";
 import { BondingCurve } from "../target/types/bonding_curve";
+import { BUYER_KEYPAIR_PATH, CREATOR_KEYPAIR_PATH, DEVNET_URL, METAPLEX_PROGRAM_ID, PAYMENT_MINT_PUBKEY, TOKEN_FACTORY_PROGRAM_ID } from "./constants";
 
-// Metaplex Metadata program ID
-const METAPLEX_PROGRAM_ID = new PublicKey(
-  "metaqbxxUerdq28cj1RbAWkYQm3ybzjb6a8bt518x1s"
-);
-
-// Token factory program ID
-const TOKEN_FACTORY_PROGRAM_ID = new PublicKey(
-  "TF5AoQEG87r1gpWsNzADMxYean6tfdGVUouQQ5LbYPP"
-);
-
-// Adjust these paths/keys to suit environment:
-const DEVNET_URL = "https://api.devnet.solana.com";
-const CREATOR_KEYPAIR_PATH = path.join(
-  process.env.HOME!,
-  ".config",
-  "solana",
-  "devnet-owner.json"
-);
-const BUYER_KEYPAIR_PATH = path.join(
-  process.env.HOME!,
-  ".config",
-  "solana",
-  "devnet-buyer.json"
-);
-
-// Base (payment) token mint
-const PAYMENT_MINT_PUBKEY = new PublicKey(
-  "2fV8xnkYe5pjuQh6AsexFHJDUUdycUVU3ioRsJU4wsh2"
-);
 
 // Test constants
 const TOTAL_TOKENS = new BN("1073000191");
@@ -52,7 +24,8 @@ const DECIMALS = 9;
 const LAMPORTS_PER_TOKEN = 10 ** DECIMALS;
 const BONDING_K_VIRTUAL = new BN("32190005730").mul(new BN(LAMPORTS_PER_TOKEN));
 const VIRTUAL_POOL_OFFSET = new BN(30 * LAMPORTS_PER_TOKEN);
-const GRADUATE_DOLLARS_AMOUNT = 10000;
+const GRADUATE_DOLLARS_AMOUNT = 70000;
+const GRADUATE_THRESHOLD = 70000;
 const XBT_PRICE_DOLLARS = 0.05;
 
 // Metadata parameters for the project token
@@ -168,7 +141,6 @@ describe("Bonding Curve Program (Token Init + Buyer/Seller Flow)", () => {
         aTotalTokens: TOTAL_TOKENS,
         kVirtualPoolOffset: BONDING_K_VIRTUAL,
         cBondingScaleFactor: VIRTUAL_POOL_OFFSET,
-        xTotalBaseDeposit: new BN(0),
       },
       acceptedBaseMint: PAYMENT_MINT_PUBKEY,
       graduateDollarsAmount: GRADUATE_DOLLARS_AMOUNT,
@@ -207,12 +179,17 @@ describe("Bonding Curve Program (Token Init + Buyer/Seller Flow)", () => {
     console.log("After init_core, XYBER state:", xyberState);
   });
 
-  it("1.2) update_core_instruction with random gradThreshold", async () => {
+  it("1.2) update_core_instruction with random gradThreshold & small graduateDollars offset", async () => {
     console.log("----- Step 2: update_core_instruction -----");
 
-    // Generate a random gradThreshold
+    // 1) Generate a random gradThreshold
     const randomGradThreshold = Math.floor(Math.random() * 5000) + 1;
 
+    // 2) Add a small random offset (1..3) to GRADUATE_DOLLARS_AMOUNT
+    const randomDollarsOffset = Math.floor(Math.random() * 3) + 1;
+    const newGraduateDollarsAmount = GRADUATE_DOLLARS_AMOUNT + randomDollarsOffset;
+
+    // 3) Build the update params
     const updateTokenParams = {
       admin: creatorKeypair.publicKey,
       gradThreshold: randomGradThreshold,
@@ -220,12 +197,12 @@ describe("Bonding Curve Program (Token Init + Buyer/Seller Flow)", () => {
         aTotalTokens: TOTAL_TOKENS,
         kVirtualPoolOffset: BONDING_K_VIRTUAL,
         cBondingScaleFactor: VIRTUAL_POOL_OFFSET,
-        xTotalBaseDeposit: new BN(0),
       },
       acceptedBaseMint: PAYMENT_MINT_PUBKEY,
-      graduateDollarsAmount: 7777,
+      graduateDollarsAmount: newGraduateDollarsAmount,
     };
 
+    // 4) Construct the instruction
     const ixUpdate = await program.methods
       .updateXyberCoreInstruction(updateTokenParams)
       .accounts({
@@ -235,18 +212,31 @@ describe("Bonding Curve Program (Token Init + Buyer/Seller Flow)", () => {
       .signers([creatorKeypair])
       .instruction();
 
+    // 5) Send the transaction
     const txUpdate = new Transaction().add(ixUpdate);
-
     console.log("Sending update_core_instruction transaction...");
     const sigUpdate = await provider.sendAndConfirm(txUpdate, [creatorKeypair]);
     console.log("update_core_instruction SUCCESS, signature =", sigUpdate);
 
-    // Fetch the updated state
+    // 6) Fetch the updated state
     const xyberState = await program.account.xyberCore.fetch(xyberCorePda);
     console.log("After update_core, XYBER state:", xyberState);
 
-    // Assert that the update took effect
-    assert.equal(xyberState.gradThreshold, randomGradThreshold);
+    // 7) Assert both fields were updated
+    assert.equal(
+      xyberState.gradThreshold,
+      randomGradThreshold,
+      "gradThreshold mismatch"
+    );
+    assert.equal(
+      xyberState.graduateDollarsAmount,
+      newGraduateDollarsAmount,
+      "graduateDollarsAmount mismatch"
+    );
+
+    console.log(
+      `gradThreshold=${xyberState.gradThreshold}, graduateDollarsAmount=${xyberState.graduateDollarsAmount}`
+    );
   });
 
   // 3.2) init_and_mint_full_supply_instruction

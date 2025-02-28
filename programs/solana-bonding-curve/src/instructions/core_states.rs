@@ -11,7 +11,6 @@ fn fill_core_fields(core: &mut XyberCore, params: &InitCoreParams) {
         a_total_tokens: params.bonding_curve.a_total_tokens,
         k_virtual_pool_offset: params.bonding_curve.k_virtual_pool_offset,
         c_bonding_scale_factor: params.bonding_curve.c_bonding_scale_factor,
-        x_total_base_deposit: 0,
     };
     core.graduate_dollars_amount = params.graduate_dollars_amount;
 }

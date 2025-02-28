@@ -91,12 +91,14 @@ pub fn buy_exact_input_instruction(
         CustomError::WrongPaymentMint
     );
 
+    let escrow_balance = ctx.accounts.escrow_token_account.amount;
+
     // 1) Determine the token amount for `payment_amount`.
-    let actual_tokens_out = ctx
+    let (actual_tokens_out, _new_x) = ctx
         .accounts
         .xyber_core
         .bonding_curve
-        .buy_exact_input(payment_amount)?;
+        .buy_exact_input(escrow_balance, payment_amount)?;
 
     msg!(
         "buy_exact_input actual_tokens_out = {:?}",
@@ -182,12 +184,13 @@ pub fn buy_exact_output_instruction(
         CustomError::WrongPaymentMint
     );
 
+    let escrow_balance = ctx.accounts.escrow_token_account.amount;
     // 1) Calculate how many payment tokens are needed for `tokens_out`.
-    let payment_required = ctx
+    let (payment_required, _new_x) = ctx
         .accounts
         .xyber_core
         .bonding_curve
-        .buy_exact_output(tokens_out)?;
+        .buy_exact_output(escrow_balance, tokens_out)?;
 
     // 2) Enforce `payment_required <= max_payment_amount`.
     require!(
