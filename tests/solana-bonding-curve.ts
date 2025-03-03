@@ -366,8 +366,9 @@ describe("Bonding Curve Program (Token Init + Buyer/Seller Flow)", () => {
     const halfTokensInCurveUnits = tokensBuyerHasUnscaled.divn(2);
     console.log("Selling (unscaled) =>", halfTokensInCurveUnits.toString());
 
+    let slippage = new BN("0");
     await program.methods
-      .sellExactInputInstruction(halfTokensInCurveUnits)
+      .sellExactInputInstruction(halfTokensInCurveUnits, slippage)
       .accounts({
         xyberCore: xyberCorePda,
         tokenSeed: tokenSeedKeypair.publicKey,
@@ -459,7 +460,7 @@ describe("Bonding Curve Program (Token Init + Buyer/Seller Flow)", () => {
   });
 
   // 3.6) Buyer sells EXACT output
-  it("1.7) Buyer sells EXACT output: requests 3,000 lamports back (sell_exact_output_instruction)", async () => {
+  it("1.7) Buyer sells EXACT output: requests lamports back (sell_exact_output_instruction)", async () => {
     const buyerTokenAccount = await getAssociatedTokenAddress(
       mintPda,
       buyerKeypair.publicKey
@@ -469,7 +470,7 @@ describe("Bonding Curve Program (Token Init + Buyer/Seller Flow)", () => {
       buyerKeypair.publicKey
     );
 
-    // 1) Suppose user wants 3,000 lamports of base back
+    // 1) Suppose user wants lamports of base back
     const lamportsWanted = new BN(0.01 * LAMPORTS_PER_TOKEN);
 
     // 2) Check the user's current raw token balance
@@ -478,7 +479,7 @@ describe("Bonding Curve Program (Token Init + Buyer/Seller Flow)", () => {
 
     // 3) Sell instruction
     await program.methods
-      .sellExactOutputInstruction(lamportsWanted)
+      .sellExactOutputInstruction(lamportsWanted, lamportsWanted)
       .accounts({
         xyberCore: xyberCorePda,
         tokenSeed: tokenSeedKeypair.publicKey,
