@@ -115,7 +115,7 @@ pub fn sell_exact_input_instruction(ctx: Context<SellToken>, user_token_amount: 
         .xyber_core
         .bonding_curve
         .sell_exact_input(escrow_balance, user_token_amount)?;
-
+    msg!("sell_exact_input actual_tokens_out = {}", base_token_amount);
     // Ensure the escrow holds enough base tokens.
     require!(
         base_token_amount <= ctx.accounts.escrow_token_account.amount,
@@ -167,6 +167,10 @@ pub fn sell_exact_output_instruction(
         .bonding_curve
         .sell_exact_output(escrow_balance, base_tokens_requested)?;
 
+    msg!(
+        "sell_exact_input user_tokens_required = {}",
+        user_tokens_required
+    );
     let decimal_factor = ctx.accounts.mint.decimals as u32;
     let user_tokens_required_scaled = user_tokens_required
         .checked_mul(10_u64.pow(decimal_factor))
