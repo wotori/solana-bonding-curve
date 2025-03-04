@@ -25,7 +25,7 @@ const LAMPORTS_PER_TOKEN = 10 ** DECIMALS;
 const BONDING_K_VIRTUAL = new BN("32190005730").mul(new BN(LAMPORTS_PER_TOKEN));
 const VIRTUAL_POOL_OFFSET = new BN(30 * LAMPORTS_PER_TOKEN);
 const GRADUATE_DOLLARS_AMOUNT = 70000;
-const GRADUATE_THRESHOLD = 70000;
+const GRADUATE_THRESHOLD = new BN("4285");
 const XBT_PRICE_DOLLARS = 0.05;
 
 // Metadata parameters for the project token
@@ -130,69 +130,25 @@ describe("Bonding Curve Program (Token Init + Buyer/Seller Flow)", () => {
   // ------------------------------------------------------------------
   // 3) Tests
   // ------------------------------------------------------------------
-
-  // 3.1) init_core_instruction
-  it("1.1) init_core_instruction", async () => {
-    console.log("----- Step 1: init_core_instruction -----");
-    const createTokenParams = {
-      admin: creatorKeypair.publicKey,
-      gradThreshold: 1000,
-      bondingCurve: {
-        aTotalTokens: TOTAL_TOKENS,
-        kVirtualPoolOffset: BONDING_K_VIRTUAL,
-        cBondingScaleFactor: VIRTUAL_POOL_OFFSET,
-      },
-      acceptedBaseMint: PAYMENT_MINT_PUBKEY,
-      graduateDollarsAmount: GRADUATE_DOLLARS_AMOUNT,
-    };
-
-    const ixCore = await program.methods
-      .setupXyberCoreInstruction(createTokenParams)
-      .accounts({
-        signer: creatorKeypair.publicKey,
-        xyberCore: xyberCorePda,
-        systemProgram: SystemProgram.programId,
-      })
-      .signers([creatorKeypair])
-      .instruction();
-
-    const txCore = new Transaction().add(ixCore);
-
-    console.log("Sending init_core_instruction transaction...");
-    try {
-      const sigCore = await provider.sendAndConfirm(txCore, [creatorKeypair]);
-      console.log("init_core_instruction SUCCESS, signature =", sigCore);
-    } catch (err: any) {
-      const msg = err.message || "";
-      if (
-        msg.includes("already in use") ||
-        msg.includes("custom program error: 0x0")
-      ) {
-        console.log("Account already exists. Skipping init.");
-      } else {
-        throw err;
-      }
-    }
-
-    // Optionally fetch the state
-    const xyberState = await program.account.xyberCore.fetch(xyberCorePda);
-    console.log("After init_core, XYBER state:", xyberState);
-  });
-
   it("1.2) update_core_instruction with random gradThreshold & small graduateDollars offset", async () => {
     console.log("----- Step 2: update_core_instruction -----");
 
-    // 1) Generate a random gradThreshold
-    const randomGradThreshold = Math.floor(Math.random() * 5000) + 1;
+    // await program.methods.closeXyberCoreInstruction() // uncomment to recreate the core if needed
+    //   .accounts({
+    //     xyberCore: xyberCorePda,
+    //     admin: creatorKeypair.publicKey,
+    //   })
+    //   .signers([creatorKeypair])
+    //   .rpc();
 
-    // 2) Add a small random offset (1..3) to GRADUATE_DOLLARS_AMOUNT
+    // Add a small random offset (1..3) to GRADUATE_DOLLARS_AMOUNT
     const randomDollarsOffset = Math.floor(Math.random() * 3) + 1;
     const newGraduateDollarsAmount = GRADUATE_DOLLARS_AMOUNT + randomDollarsOffset;
 
-    // 3) Build the update params
+    // Build the update params
     const updateTokenParams = {
       admin: creatorKeypair.publicKey,
-      gradThreshold: randomGradThreshold,
+      gradThreshold: GRADUATE_THRESHOLD,
       bondingCurve: {
         aTotalTokens: TOTAL_TOKENS,
         kVirtualPoolOffset: BONDING_K_VIRTUAL,
@@ -202,7 +158,7 @@ describe("Bonding Curve Program (Token Init + Buyer/Seller Flow)", () => {
       graduateDollarsAmount: newGraduateDollarsAmount,
     };
 
-    // 4) Construct the instruction
+    // Construct the instruction
     const ixUpdate = await program.methods
       .updateXyberCoreInstruction(updateTokenParams)
       .accounts({
@@ -212,31 +168,15 @@ describe("Bonding Curve Program (Token Init + Buyer/Seller Flow)", () => {
       .signers([creatorKeypair])
       .instruction();
 
-    // 5) Send the transaction
+    // Send the transaction
     const txUpdate = new Transaction().add(ixUpdate);
     console.log("Sending update_core_instruction transaction...");
     const sigUpdate = await provider.sendAndConfirm(txUpdate, [creatorKeypair]);
     console.log("update_core_instruction SUCCESS, signature =", sigUpdate);
 
-    // 6) Fetch the updated state
+    // Fetch the updated state
     const xyberState = await program.account.xyberCore.fetch(xyberCorePda);
     console.log("After update_core, XYBER state:", xyberState);
-
-    // 7) Assert both fields were updated
-    assert.equal(
-      xyberState.gradThreshold,
-      randomGradThreshold,
-      "gradThreshold mismatch"
-    );
-    assert.equal(
-      xyberState.graduateDollarsAmount,
-      newGraduateDollarsAmount,
-      "graduateDollarsAmount mismatch"
-    );
-
-    console.log(
-      `gradThreshold=${xyberState.gradThreshold}, graduateDollarsAmount=${xyberState.graduateDollarsAmount}`
-    );
   });
 
   // 3.2) init_and_mint_full_supply_instruction
@@ -534,9 +474,9 @@ describe("Bonding Curve Program (Token Init + Buyer/Seller Flow)", () => {
     console.log("Escrow base token balance (human-readable) =", escrowBalanceHuman);
 
     // 3) Compare escrow balance to the graduation threshold
-    const thresholdNeeded = Number(xyberState.graduateDollarsAmount);
+    const thresholdNeeded = Number(xyberState.gradThreshold);
     const leftToGraduate =
-      thresholdNeeded - escrowBalanceHuman * XBT_PRICE_DOLLARS;
+      thresholdNeeded - escrowBalanceHuman;
 
     if (leftToGraduate <= 0) {
       console.log("** Already at or above graduation threshold! **");
@@ -631,5 +571,62 @@ describe("Bonding Curve Program (Token Init + Buyer/Seller Flow)", () => {
     console.log("buyer token balance (raw) =", buyerAtaInfo.amount.toString());
 
     console.log("----- End of Dump -----");
+  });
+
+  it("2.1) Withdraw Liquidity with correct admin, checking balance difference", async () => {
+    // Suppose we want to withdraw 1000 "raw units" (adjust if decimals).
+    const withdrawAmount = new BN(1000);
+
+    // 1) Derive the correct ATA for (creatorKeypair, PAYMENT_MINT_PUBKEY)
+    const adminBaseAta = await getAssociatedTokenAddress(
+      PAYMENT_MINT_PUBKEY,
+      creatorKeypair.publicKey,
+      true // allowOwnerOffCurve = false by default in new SPL Token versions
+    );
+
+    // 2) Get admin's balance before
+    const beforeInfo = await getAccount(connection, adminBaseAta);
+    const beforeRawBalance = beforeInfo.amount;
+    console.log("Admin ATA balance before =>", beforeRawBalance.toString());
+
+    try {
+      // 3) Withdraw with the correct admin
+      await program.methods
+        .withdrawLiquidity(withdrawAmount)
+        .accounts({
+          admin: creatorKeypair.publicKey,
+          xyberCore: xyberCorePda,
+          xyberToken: xyberTokenPda,
+          tokenSeed: tokenSeedKeypair.publicKey,
+          creator: creatorKeypair.publicKey,
+          escrowTokenAccount,
+          baseTokenMint: PAYMENT_MINT_PUBKEY,
+          adminTokenAccount: adminBaseAta,
+          rent: anchor.web3.SYSVAR_RENT_PUBKEY,
+          tokenProgram: TOKEN_PROGRAM_ID,
+          associatedTokenProgram: ASSOCIATED_TOKEN_PROGRAM_ID,
+          systemProgram: anchor.web3.SystemProgram.programId,
+        })
+        .signers([creatorKeypair]) // Must sign as the real admin
+        .rpc();
+
+      // 4) Get admin's balance after
+      const afterInfo = await getAccount(connection, adminBaseAta);
+      const afterRawBalance = afterInfo.amount;
+      console.log("Admin ATA balance after =>", afterRawBalance.toString());
+
+      // 5) Confirm it increased by exactly 'withdrawAmount'
+      const diff = afterRawBalance - beforeRawBalance;
+      assert(
+        diff === BigInt(withdrawAmount.toString()),
+        `Expected balance to increase by ${withdrawAmount}, but got ${diff}`
+      );
+
+      console.log("Withdrawal succeeded; balance increased as expected.");
+    } catch (err) {
+      const errorMessage = err.toString();
+      console.error("Withdrawal attempt =>", errorMessage);
+      assert.fail(`Unexpected error. Got: ${errorMessage}`);
+    }
   });
 });

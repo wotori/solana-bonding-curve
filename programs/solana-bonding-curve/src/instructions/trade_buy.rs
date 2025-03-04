@@ -131,14 +131,16 @@ pub fn buy_exact_input_instruction(
     token::transfer(transfer_payment_ctx, payment_amount)?;
 
     // 5) Check graduation condition.
-    let real_escrow_tokens = ctx.accounts.escrow_token_account.amount as f64
-        / 10_f64.powi(ctx.accounts.payment_mint.decimals.into());
-    let price = 0.05; // TODO: read from Oracle or keep it fixed for now
-    if real_escrow_tokens * price >= ctx.accounts.xyber_core.graduate_dollars_amount as f64 {
+    let real_escrow_tokens = ctx.accounts.escrow_token_account.amount
+        / 10_u64.pow(ctx.accounts.payment_mint.decimals.into());
+
+    if real_escrow_tokens >= ctx.accounts.xyber_core.grad_threshold {
         ctx.accounts.xyber_token.is_graduated = true;
         emit!(GraduationTriggered {
             buyer: ctx.accounts.buyer.key(),
             escrow_balance: ctx.accounts.escrow_token_account.amount,
+            vault: ctx.accounts.vault_token_account.key(),
+            creator: ctx.accounts.xyber_token.creator.key(),
         });
     }
 
@@ -216,14 +218,16 @@ pub fn buy_exact_output_instruction(
     token::transfer(transfer_payment_ctx, payment_required)?;
 
     // 5) Check graduation.
-    let real_escrow_tokens = ctx.accounts.escrow_token_account.amount as f64
-        / 10_f64.powi(ctx.accounts.payment_mint.decimals.into());
-    let price = 0.05; // TODO: read from Oracle or keep it fixed for now
-    if real_escrow_tokens * price >= ctx.accounts.xyber_core.graduate_dollars_amount as f64 {
+    let real_escrow_tokens = ctx.accounts.escrow_token_account.amount
+        / 10_u64.pow(ctx.accounts.payment_mint.decimals.into());
+
+    if real_escrow_tokens >= ctx.accounts.xyber_core.grad_threshold {
         ctx.accounts.xyber_token.is_graduated = true;
         emit!(GraduationTriggered {
             buyer: ctx.accounts.buyer.key(),
             escrow_balance: ctx.accounts.escrow_token_account.amount,
+            vault: ctx.accounts.vault_token_account.key(),
+            creator: ctx.accounts.xyber_token.creator.key(),
         });
     }
 

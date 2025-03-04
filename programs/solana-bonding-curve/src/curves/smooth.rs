@@ -289,7 +289,6 @@ mod tests {
         let mut prev_minted = u128::MAX;
         let curve = default_curve();
 
-        let mut old_x = 0;
         for fraction in fractions {
             // each iteration starts a new test scenario with old_x=0
             let old_x_local = 0;

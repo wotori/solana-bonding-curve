@@ -6,11 +6,11 @@ pub static DECIMALS: u8 = 9;
 
 #[derive(AnchorSerialize, AnchorDeserialize, Clone)]
 pub struct InitCoreParams {
-    pub admin: Pubkey,
-    pub grad_threshold: u16,
-    pub bonding_curve: SmoothBondingCurve,
-    pub accepted_base_mint: Pubkey,
-    pub graduate_dollars_amount: u32,
+    pub admin: Option<Pubkey>,
+    pub grad_threshold: Option<u64>,
+    pub bonding_curve: Option<SmoothBondingCurve>,
+    pub accepted_base_mint: Option<Pubkey>,
+    pub graduate_dollars_amount: Option<u32>,
 }
 
 #[derive(AnchorSerialize, AnchorDeserialize, Clone)]

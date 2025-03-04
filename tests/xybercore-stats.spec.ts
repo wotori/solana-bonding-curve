@@ -45,20 +45,17 @@ describe("XyberCore Stats Only", () => {
         const aTotalTokensDecimal = new anchor.BN(xyberCoreState.bondingCurve.aTotalTokens, 16).toString(10);
         const kVirtualPoolOffsetDecimal = new anchor.BN(xyberCoreState.bondingCurve.kVirtualPoolOffset, 16).toString(10);
         const cBondingScaleFactorDecimal = new anchor.BN(xyberCoreState.bondingCurve.cBondingScaleFactor, 16).toString(10);
-        const xTotalBaseDepositDecimal = new anchor.BN(xyberCoreState.bondingCurve.xTotalBaseDeposit, 16).toString(10);
 
         console.log("=== XyberCore State (human-readable) ===");
         console.log("admin =", xyberCoreState.admin.toBase58 ? xyberCoreState.admin.toBase58() : xyberCoreState.admin);
         console.log("gradThreshold =", xyberCoreState.gradThreshold.toString());
         console.log("acceptedBaseMint =", xyberCoreState.acceptedBaseMint.toBase58 ? xyberCoreState.acceptedBaseMint.toBase58() : xyberCoreState.acceptedBaseMint);
-        console.log("graduateDollarsAmount =", xyberCoreState.graduateDollarsAmount.toString());
 
         // Bonding Curve fields (raw decimal integers)
         console.log("\n-- Bonding Curve --");
         console.log("aTotalTokens =", aTotalTokensDecimal);
         console.log("kVirtualPoolOffset =", kVirtualPoolOffsetDecimal);
         console.log("cBondingScaleFactor =", cBondingScaleFactorDecimal);
-        console.log("xTotalBaseDeposit =", xTotalBaseDepositDecimal);
 
         assert(xyberCoreState, "Failed to fetch XyberCore state");
     });

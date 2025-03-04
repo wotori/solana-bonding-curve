@@ -10,6 +10,5 @@ bd:
 bdtest:
 	make bd && make t
 
-
 qa-xyber-core-stats:
 	npx mocha -r ts-node/register tests/xybercore-stats.spec.ts --timeout 100000
