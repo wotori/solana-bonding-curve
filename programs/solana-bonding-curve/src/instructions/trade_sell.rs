@@ -17,9 +17,6 @@ pub struct SellToken<'info> {
     #[account(mut)]
     pub user: Signer<'info>,
 
-    /// CHECK: Creator account
-    pub creator: UncheckedAccount<'info>,
-
     #[account(
         mut,
         seeds = [b"xyber_core"],
@@ -29,12 +26,12 @@ pub struct SellToken<'info> {
 
     #[account(
         mut,
-        seeds = [b"xyber_token", creator.key().as_ref(), token_seed.key().as_ref()],
+        seeds = [b"xyber_token", token_seed.key().as_ref()],
         bump
     )]
     pub xyber_token: Account<'info, XyberToken>,
 
-    /// The escrow SPL token account that holds the *payment* tokens (e.g. XBT, USDC).
+    /// The escrow SPL token account that holds the *payment* tokens (e.g. USDC).
     #[account(
         mut,
         associated_token::mint = payment_mint,
@@ -81,11 +78,23 @@ pub struct SellToken<'info> {
     pub system_program: UncheckedAccount<'info>,
 }
 
-pub fn sell_exact_input_instruction(ctx: Context<SellToken>, user_token_amount: u64) -> Result<()> {
+/// Sells an *exact input* of project tokens in exchange for base (payment) tokens.
+/// Enforces a “minimum” base tokens out to guard against slippage.
+pub fn sell_exact_input_instruction(
+    ctx: Context<SellToken>,
+    user_token_amount: u64,
+    min_base_amount_out: u64, // slippage guard
+) -> Result<()> {
     // 0) Prevent sells if the token is already graduated (assets locked).
     require!(
         !ctx.accounts.xyber_token.is_graduated,
         CustomError::TokenIsGraduated
+    );
+
+    require_keys_eq!(
+        ctx.accounts.payment_mint.key(),
+        ctx.accounts.xyber_core.accepted_base_mint,
+        CustomError::WrongPaymentMint
     );
 
     // 1) Scale the user token amount by the mint decimals.
@@ -105,30 +114,32 @@ pub fn sell_exact_input_instruction(ctx: Context<SellToken>, user_token_amount: 
     );
     token::transfer(user_to_vault_ctx, tokens_to_transfer)?;
 
-    // 3) Calculate how many payment (base) tokens the user should receive.
-    let base_token_amount = ctx
+    // 3) Calculate how many base (payment) tokens the user should receive.
+    let escrow_balance = ctx.accounts.escrow_token_account.amount;
+    let (base_token_amount, _new_x) = ctx
         .accounts
         .xyber_core
         .bonding_curve
-        .sell_exact_input(user_token_amount)?;
+        .sell_exact_input(escrow_balance, user_token_amount)?;
+    msg!("sell_exact_input actual_tokens_out = {}", base_token_amount);
 
-    // Ensure the escrow holds enough base tokens.
+    // 4) Enforce slippage check: base_token_amount >= min_base_amount_out
+    require!(
+        base_token_amount >= min_base_amount_out,
+        CustomError::SlippageExceeded
+    );
+
+    // 5) Ensure the escrow holds enough base tokens.
     require!(
         base_token_amount <= ctx.accounts.escrow_token_account.amount,
         CustomError::InsufficientEscrowBalance
     );
 
-    // 4) Transfer base tokens from escrow to the user using the PDA signature.
-    let creator_key = ctx.accounts.creator.key();
+    // 6) Transfer base tokens from escrow to the user using the PDA signature.
     let token_seed_key = ctx.accounts.token_seed.key();
     let xyber_token_bump = ctx.bumps.xyber_token;
 
-    let seeds: [&[u8]; 4] = [
-        b"xyber_token",
-        creator_key.as_ref(),
-        token_seed_key.as_ref(),
-        &[xyber_token_bump],
-    ];
+    let seeds: [&[u8]; 3] = [b"xyber_token", token_seed_key.as_ref(), &[xyber_token_bump]];
     let signer_seeds = &[&seeds[..]];
 
     let escrow_to_user_ctx = CpiContext::new_with_signer(
@@ -145,9 +156,12 @@ pub fn sell_exact_input_instruction(ctx: Context<SellToken>, user_token_amount: 
     Ok(())
 }
 
+/// Sells enough project tokens to obtain an *exact output* of base (payment) tokens.
+/// Enforces a “maximum” amount of user tokens that can be taken, to guard against slippage.
 pub fn sell_exact_output_instruction(
     ctx: Context<SellToken>,
     base_tokens_requested: u64,
+    max_tokens_in: u64, // slippage guard
 ) -> Result<()> {
     // 0) Prevent sells if the token is already graduated.
     require!(
@@ -155,19 +169,36 @@ pub fn sell_exact_output_instruction(
         CustomError::TokenIsGraduated
     );
 
-    // 1) Calculate how many user tokens are required to receive the requested base tokens.
-    let user_tokens_required = ctx
+    require_keys_eq!(
+        ctx.accounts.payment_mint.key(),
+        ctx.accounts.xyber_core.accepted_base_mint,
+        CustomError::WrongPaymentMint
+    );
+
+    // 1) Calculate how many user tokens are required to get the requested base tokens.
+    let escrow_balance = ctx.accounts.escrow_token_account.amount;
+    let (user_tokens_required, _new_x) = ctx
         .accounts
         .xyber_core
         .bonding_curve
-        .sell_exact_output(base_tokens_requested)?;
+        .sell_exact_output(escrow_balance, base_tokens_requested)?;
+    msg!(
+        "sell_exact_output user_tokens_required = {}",
+        user_tokens_required
+    );
+
+    // 2) Enforce slippage check: user_tokens_required <= max_tokens_in
+    require!(
+        user_tokens_required <= max_tokens_in,
+        CustomError::SlippageExceeded
+    );
 
     let decimal_factor = ctx.accounts.mint.decimals as u32;
     let user_tokens_required_scaled = user_tokens_required
         .checked_mul(10_u64.pow(decimal_factor))
         .ok_or(CustomError::MathOverflow)?;
 
-    // 2) Transfer the required user tokens from the user to the vault.
+    // 3) Transfer the required user tokens from the user to the vault.
     let user_to_vault_ctx = CpiContext::new(
         ctx.accounts.token_program.to_account_info(),
         Transfer {
@@ -178,23 +209,17 @@ pub fn sell_exact_output_instruction(
     );
     token::transfer(user_to_vault_ctx, user_tokens_required_scaled)?;
 
-    // 3) Verify that the escrow holds enough base tokens.
+    // 4) Verify that the escrow holds enough base tokens.
     require!(
         base_tokens_requested <= ctx.accounts.escrow_token_account.amount,
         CustomError::InsufficientEscrowBalance
     );
 
-    // 4) Transfer the requested base tokens from escrow to the user.
-    let creator_key = ctx.accounts.creator.key();
+    // 5) Transfer the requested base tokens from escrow to the user.
     let token_seed_key = ctx.accounts.token_seed.key();
     let xyber_token_bump = ctx.bumps.xyber_token;
 
-    let seeds: [&[u8]; 4] = [
-        b"xyber_token",
-        creator_key.as_ref(),
-        token_seed_key.as_ref(),
-        &[xyber_token_bump],
-    ];
+    let seeds: [&[u8]; 3] = [b"xyber_token", token_seed_key.as_ref(), &[xyber_token_bump]];
     let signer_seeds = &[&seeds[..]];
 
     let escrow_to_user_ctx = CpiContext::new_with_signer(

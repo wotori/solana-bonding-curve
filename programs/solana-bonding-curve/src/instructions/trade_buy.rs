@@ -17,9 +17,6 @@ pub struct BuyToken<'info> {
     #[account(mut)]
     pub buyer: Signer<'info>,
 
-    /// CHECK: Creator account.
-    pub creator: UncheckedAccount<'info>,
-
     #[account(
         mut,
         seeds = [b"xyber_core"],
@@ -29,10 +26,10 @@ pub struct BuyToken<'info> {
 
     #[account(
         mut,
-        seeds = [b"xyber_token", creator.key().as_ref(), token_seed.key().as_ref()],
+        seeds = [b"xyber_token", token_seed.key().as_ref()],
         bump
     )]
-    pub xyber_token: Box<Account<'info, XyberToken>>,
+    pub xyber_token: Account<'info, XyberToken>,
 
     #[account(
         mut,
@@ -88,12 +85,20 @@ pub fn buy_exact_input_instruction(
         CustomError::TokenIsGraduated
     );
 
+    require_keys_eq!(
+        ctx.accounts.payment_mint.key(),
+        ctx.accounts.xyber_core.accepted_base_mint,
+        CustomError::WrongPaymentMint
+    );
+
+    let escrow_balance = ctx.accounts.escrow_token_account.amount;
+
     // 1) Determine the token amount for `payment_amount`.
-    let actual_tokens_out = ctx
+    let (actual_tokens_out, _new_x) = ctx
         .accounts
         .xyber_core
         .bonding_curve
-        .buy_exact_input(payment_amount)?;
+        .buy_exact_input(escrow_balance, payment_amount)?;
 
     msg!(
         "buy_exact_input actual_tokens_out = {:?}",
@@ -126,14 +131,16 @@ pub fn buy_exact_input_instruction(
     token::transfer(transfer_payment_ctx, payment_amount)?;
 
     // 5) Check graduation condition.
-    let real_escrow_tokens = ctx.accounts.escrow_token_account.amount as f64
-        / 10_f64.powi(ctx.accounts.payment_mint.decimals.into());
-    let price = 0.05; // TODO: read from Oracle or keep it fixed for now
-    if real_escrow_tokens * price >= ctx.accounts.xyber_core.graduate_dollars_amount as f64 {
+    let real_escrow_tokens = ctx.accounts.escrow_token_account.amount
+        / 10_u64.pow(ctx.accounts.payment_mint.decimals.into());
+
+    if real_escrow_tokens >= ctx.accounts.xyber_core.grad_threshold {
         ctx.accounts.xyber_token.is_graduated = true;
         emit!(GraduationTriggered {
             buyer: ctx.accounts.buyer.key(),
             escrow_balance: ctx.accounts.escrow_token_account.amount,
+            vault: ctx.accounts.vault_token_account.key(),
+            creator: ctx.accounts.xyber_token.creator.key(),
         });
     }
 
@@ -142,16 +149,10 @@ pub fn buy_exact_input_instruction(
         .checked_mul(10_u64.pow(ctx.accounts.mint.decimals as u32))
         .ok_or(CustomError::MathOverflow)?;
 
-    let creator_key = ctx.accounts.creator.key();
     let token_seed_key = ctx.accounts.token_seed.key();
     let xyber_token_bump = ctx.bumps.xyber_token;
 
-    let seeds: [&[u8]; 4] = [
-        b"xyber_token",
-        creator_key.as_ref(),
-        token_seed_key.as_ref(),
-        &[xyber_token_bump],
-    ];
+    let seeds: [&[u8]; 3] = [b"xyber_token", token_seed_key.as_ref(), &[xyber_token_bump]];
     let signer_seeds = &[&seeds[..]];
 
     let vault_transfer_ctx = CpiContext::new_with_signer(
@@ -179,12 +180,19 @@ pub fn buy_exact_output_instruction(
         CustomError::TokenIsGraduated
     );
 
+    require_keys_eq!(
+        ctx.accounts.payment_mint.key(),
+        ctx.accounts.xyber_core.accepted_base_mint,
+        CustomError::WrongPaymentMint
+    );
+
+    let escrow_balance = ctx.accounts.escrow_token_account.amount;
     // 1) Calculate how many payment tokens are needed for `tokens_out`.
-    let payment_required = ctx
+    let (payment_required, _new_x) = ctx
         .accounts
         .xyber_core
         .bonding_curve
-        .buy_exact_output(tokens_out)?;
+        .buy_exact_output(escrow_balance, tokens_out)?;
 
     // 2) Enforce `payment_required <= max_payment_amount`.
     require!(
@@ -210,14 +218,16 @@ pub fn buy_exact_output_instruction(
     token::transfer(transfer_payment_ctx, payment_required)?;
 
     // 5) Check graduation.
-    let real_escrow_tokens = ctx.accounts.escrow_token_account.amount as f64
-        / 10_f64.powi(ctx.accounts.payment_mint.decimals.into());
-    let price = 0.05; // TODO: read from Oracle or keep it fixed for now
-    if real_escrow_tokens * price >= ctx.accounts.xyber_core.graduate_dollars_amount as f64 {
+    let real_escrow_tokens = ctx.accounts.escrow_token_account.amount
+        / 10_u64.pow(ctx.accounts.payment_mint.decimals.into());
+
+    if real_escrow_tokens >= ctx.accounts.xyber_core.grad_threshold {
         ctx.accounts.xyber_token.is_graduated = true;
         emit!(GraduationTriggered {
             buyer: ctx.accounts.buyer.key(),
             escrow_balance: ctx.accounts.escrow_token_account.amount,
+            vault: ctx.accounts.vault_token_account.key(),
+            creator: ctx.accounts.xyber_token.creator.key(),
         });
     }
 
@@ -227,16 +237,10 @@ pub fn buy_exact_output_instruction(
         .checked_mul(10_u64.pow(decimals))
         .ok_or(CustomError::MathOverflow)?;
 
-    let creator_key = ctx.accounts.creator.key();
     let token_seed_key = ctx.accounts.token_seed.key();
     let xyber_token_bump = ctx.bumps.xyber_token;
 
-    let seeds: [&[u8]; 4] = [
-        b"xyber_token",
-        creator_key.as_ref(),
-        token_seed_key.as_ref(),
-        &[xyber_token_bump],
-    ];
+    let seeds: [&[u8]; 3] = [b"xyber_token", token_seed_key.as_ref(), &[xyber_token_bump]];
     let signer_seeds = &[&seeds[..]];
 
     let transfer_tokens_ctx = CpiContext::new_with_signer(

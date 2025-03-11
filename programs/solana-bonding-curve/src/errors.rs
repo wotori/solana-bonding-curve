@@ -28,4 +28,7 @@ pub enum CustomError {
 
     #[msg("Slippage exceeded user-defined limit.")]
     SlippageExceeded,
+
+    #[msg("Wrong payment mint provided.")]
+    WrongPaymentMint,
 }

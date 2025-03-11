@@ -19,20 +19,20 @@ const PAYMENT_MINT_PUBKEY = new PublicKey(
     '6WQQPDXsBxkgMwuApkXbV2bUf3CZAJmGBDqk62aMpmKR'
 );
 
-const XYBER_CORE_PROGRAM_ID = new PublicKey(
-    '7TtWm2z8uixrGbxhkT1SYZfWfbiAJEg7zRaozUh46v2C'
+const XYBER_PROGRAM_ID = new PublicKey(
+    'BdHFqKoxuP3nFChJU7uLx39CJMF88SxH5ZkX4oZ5YqcD'
 );
 
 export const deriveAddresses = async (
     wallet: WalletContextState,
     tokenSeedKeypair: Keypair
 ) => {
-    const publicKey = wallet.publicKey as PublicKey; // Safe after validateWallet
+    const publicKey = wallet.publicKey as PublicKey;
 
     // Derive PDAs
     const [xyberCorePda] = PublicKey.findProgramAddressSync(
         [Buffer.from('xyber_core')],
-        XYBER_CORE_PROGRAM_ID
+        XYBER_PROGRAM_ID
     );
 
     const [xyberTokenPda] = PublicKey.findProgramAddressSync(
@@ -41,7 +41,7 @@ export const deriveAddresses = async (
             publicKey.toBuffer(),
             tokenSeedKeypair.publicKey.toBuffer()
         ],
-        XYBER_CORE_PROGRAM_ID
+        XYBER_PROGRAM_ID
     );
 
     const [mintPda] = PublicKey.findProgramAddressSync(

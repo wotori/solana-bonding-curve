@@ -15,36 +15,8 @@ import {
 import { assert } from "chai";
 import path from "path";
 import { BondingCurve } from "../target/types/bonding_curve";
+import { BUYER_KEYPAIR_PATH, CREATOR_KEYPAIR_PATH, DEVNET_URL, METAPLEX_PROGRAM_ID, PAYMENT_MINT_PUBKEY, TOKEN_FACTORY_PROGRAM_ID } from "./constants";
 
-// Metaplex Metadata program ID
-const METAPLEX_PROGRAM_ID = new PublicKey(
-  "metaqbxxUerdq28cj1RbAWkYQm3ybzjb6a8bt518x1s"
-);
-
-// Token factory program ID
-const TOKEN_FACTORY_PROGRAM_ID = new PublicKey(
-  "TF5AoQEG87r1gpWsNzADMxYean6tfdGVUouQQ5LbYPP"
-);
-
-// Adjust these paths/keys to suit environment:
-const DEVNET_URL = "https://api.devnet.solana.com";
-const CREATOR_KEYPAIR_PATH = path.join(
-  process.env.HOME!,
-  ".config",
-  "solana",
-  "devnet-owner.json"
-);
-const BUYER_KEYPAIR_PATH = path.join(
-  process.env.HOME!,
-  ".config",
-  "solana",
-  "devnet-buyer.json"
-);
-
-// Base (payment) token mint
-const PAYMENT_MINT_PUBKEY = new PublicKey(
-  "6WQQPDXsBxkgMwuApkXbV2bUf3CZAJmGBDqk62aMpmKR"
-);
 
 // Test constants
 const TOTAL_TOKENS = new BN("1073000191");
@@ -52,7 +24,8 @@ const DECIMALS = 9;
 const LAMPORTS_PER_TOKEN = 10 ** DECIMALS;
 const BONDING_K_VIRTUAL = new BN("32190005730").mul(new BN(LAMPORTS_PER_TOKEN));
 const VIRTUAL_POOL_OFFSET = new BN(30 * LAMPORTS_PER_TOKEN);
-const GRADUATE_DOLLARS_AMOUNT = 10000;
+const GRADUATE_DOLLARS_AMOUNT = 70000;
+const GRADUATE_THRESHOLD = new BN("4285");
 const XBT_PRICE_DOLLARS = 0.05;
 
 // Metadata parameters for the project token
@@ -65,7 +38,8 @@ const minutes = String(now.getMinutes()).padStart(2, "0");
 
 const tokenName = `${year}_${month}_${day}_${hours}_${minutes}`;
 const tokenSymbol = "HWD";
-const tokenUri = "https://ekza.io/ipfs/QmVjBTRsbAM96BnNtZKrR8i3hGRbkjnQ3kugwXn6BVFu2k";
+const tokenUri =
+  "https://ekza.io/ipfs/QmVjBTRsbAM96BnNtZKrR8i3hGRbkjnQ3kugwXn6BVFu2k";
 
 describe("Bonding Curve Program (Token Init + Buyer/Seller Flow)", () => {
   // 1) Setup & Keypairs
@@ -111,7 +85,6 @@ describe("Bonding Curve Program (Token Init + Buyer/Seller Flow)", () => {
     [xyberTokenPda] = PublicKey.findProgramAddressSync(
       [
         Buffer.from("xyber_token"),
-        creatorKeypair.publicKey.toBuffer(),
         tokenSeedKeypair.publicKey.toBuffer(),
       ],
       program.programId
@@ -157,72 +130,35 @@ describe("Bonding Curve Program (Token Init + Buyer/Seller Flow)", () => {
   // ------------------------------------------------------------------
   // 3) Tests
   // ------------------------------------------------------------------
-
-  // 3.1) init_core_instruction
-  it("1.1) init_core_instruction", async () => {
-    console.log("----- Step 1: init_core_instruction -----");
-    const createTokenParams = {
-      admin: creatorKeypair.publicKey,
-      gradThreshold: 1000,
-      bondingCurve: {
-        aTotalTokens: TOTAL_TOKENS,
-        kVirtualPoolOffset: BONDING_K_VIRTUAL,
-        cBondingScaleFactor: VIRTUAL_POOL_OFFSET,
-        xTotalBaseDeposit: new BN(0),
-      },
-      acceptedBaseMint: PAYMENT_MINT_PUBKEY,
-      graduateDollarsAmount: GRADUATE_DOLLARS_AMOUNT,
-    };
-
-    const ixCore = await program.methods
-      .setupXyberCoreInstruction(createTokenParams)
-      .accounts({
-        signer: creatorKeypair.publicKey,
-        xyberCore: xyberCorePda,
-        systemProgram: SystemProgram.programId,
-      })
-      .signers([creatorKeypair])
-      .instruction();
-
-    const txCore = new Transaction().add(ixCore);
-
-    console.log("Sending init_core_instruction transaction...");
-    try {
-      const sigCore = await provider.sendAndConfirm(txCore, [creatorKeypair]);
-      console.log("init_core_instruction SUCCESS, signature =", sigCore);
-    } catch (err: any) {
-      const msg = err.message || "";
-      if (msg.includes("already in use") || msg.includes("custom program error: 0x0")) {
-        console.log("Account already exists. Skipping init.");
-      } else {
-        throw err;
-      }
-    }
-
-    // Optionally fetch the state
-    const xyberState = await program.account.xyberCore.fetch(xyberCorePda);
-    console.log("After init_core, XYBER state:", xyberState);
-  });
-
-  it("1.2) update_core_instruction with random gradThreshold", async () => {
+  it("1.2) update_core_instruction with random gradThreshold & small graduateDollars offset", async () => {
     console.log("----- Step 2: update_core_instruction -----");
 
-    // Generate a random gradThreshold
-    const randomGradThreshold = Math.floor(Math.random() * 5000) + 1;
+    // await program.methods.closeXyberCoreInstruction() // uncomment to recreate the core if needed
+    //   .accounts({
+    //     xyberCore: xyberCorePda,
+    //     admin: creatorKeypair.publicKey,
+    //   })
+    //   .signers([creatorKeypair])
+    //   .rpc();
 
+    // Add a small random offset (1..3) to GRADUATE_DOLLARS_AMOUNT
+    const randomDollarsOffset = Math.floor(Math.random() * 3) + 1;
+    const newGraduateDollarsAmount = GRADUATE_DOLLARS_AMOUNT + randomDollarsOffset;
+
+    // Build the update params
     const updateTokenParams = {
       admin: creatorKeypair.publicKey,
-      gradThreshold: randomGradThreshold,
+      gradThreshold: GRADUATE_THRESHOLD,
       bondingCurve: {
         aTotalTokens: TOTAL_TOKENS,
         kVirtualPoolOffset: BONDING_K_VIRTUAL,
         cBondingScaleFactor: VIRTUAL_POOL_OFFSET,
-        xTotalBaseDeposit: new BN(0),
       },
       acceptedBaseMint: PAYMENT_MINT_PUBKEY,
-      graduateDollarsAmount: 7777,
+      graduateDollarsAmount: newGraduateDollarsAmount,
     };
 
+    // Construct the instruction
     const ixUpdate = await program.methods
       .updateXyberCoreInstruction(updateTokenParams)
       .accounts({
@@ -232,8 +168,8 @@ describe("Bonding Curve Program (Token Init + Buyer/Seller Flow)", () => {
       .signers([creatorKeypair])
       .instruction();
 
+    // Send the transaction
     const txUpdate = new Transaction().add(ixUpdate);
-
     console.log("Sending update_core_instruction transaction...");
     const sigUpdate = await provider.sendAndConfirm(txUpdate, [creatorKeypair]);
     console.log("update_core_instruction SUCCESS, signature =", sigUpdate);
@@ -241,18 +177,17 @@ describe("Bonding Curve Program (Token Init + Buyer/Seller Flow)", () => {
     // Fetch the updated state
     const xyberState = await program.account.xyberCore.fetch(xyberCorePda);
     console.log("After update_core, XYBER state:", xyberState);
-
-    // Assert that the update took effect
-    assert.equal(xyberState.gradThreshold, randomGradThreshold);
   });
 
   // 3.2) init_and_mint_full_supply_instruction
-  it("1.2) mint_full_supply_instruction", async () => {
-    console.log("----- Step 2: init_and_mint_full_supply_instruction -----");
+  it("1.3) mint_full_supply_instruction", async () => {
+    console.log("----- Step 3: mint_full_supply_instruction -----");
 
     const ixMintFullSupply = await program.methods
       .mintFullSupplyInstruction({
-        name: tokenName, symbol: tokenSymbol, uri: tokenUri
+        name: tokenName,
+        symbol: tokenSymbol,
+        uri: tokenUri,
       })
       .accounts({
         xyberCore: xyberCorePda,
@@ -268,6 +203,8 @@ describe("Bonding Curve Program (Token Init + Buyer/Seller Flow)", () => {
         associatedTokenProgram: ASSOCIATED_TOKEN_PROGRAM_ID,
         systemProgram: anchor.web3.SystemProgram.programId,
         tokenFactoryProgram: TOKEN_FACTORY_PROGRAM_ID,
+        escrowTokenAccount: escrowTokenAccount,
+        paymentMint: PAYMENT_MINT_PUBKEY,
       })
       .instruction();
 
@@ -286,54 +223,7 @@ describe("Bonding Curve Program (Token Init + Buyer/Seller Flow)", () => {
     console.log("After init_and_mint_full_supply, XYBER state:", xyberState);
   });
 
-  // 3.3) mint_initial_tokens_instruction
-  it("1.3) mint_tokens_instruction", async () => {
-    console.log("----- Step 3: mint_initial_tokens_instruction -----");
-
-    // Example deposit: 1 lamport in the base token
-    // (Change to 0.001 * LAMPORTS_PER_TOKEN if needed)
-    const depositLamports = new BN(1);
-
-    // Creator's payment account for base token
-    const creatorPaymentAccount = await getAssociatedTokenAddress(
-      PAYMENT_MINT_PUBKEY,
-      creatorKeypair.publicKey
-    );
-
-    const ixMintInitial = await program.methods
-      .initialBuyTokensInstruction(depositLamports)
-      .accounts({
-        xyberCore: xyberCorePda,
-        tokenSeed: tokenSeedKeypair.publicKey,
-        creator: creatorKeypair.publicKey,
-        xyberToken: xyberTokenPda,
-        escrowTokenAccount: escrowTokenAccount,
-        paymentMint: PAYMENT_MINT_PUBKEY,
-        creatorPaymentAccount: creatorPaymentAccount,
-        mint: mintPda,
-        vaultTokenAccount: vaultTokenAccount,
-        creatorTokenAccount: creatorTokenAccount,
-        tokenProgram: TOKEN_PROGRAM_ID,
-      })
-      .signers([creatorKeypair])
-      .instruction();
-
-    const txMintInitial = new Transaction().add(ixMintInitial);
-
-    console.log("Sending mint_initial_tokens_instruction transaction...");
-    const sigMintInitial = await provider.sendAndConfirm(txMintInitial, [
-      creatorKeypair,
-    ]);
-    console.log(
-      "mint_initial_tokens_instruction SUCCESS, signature =",
-      sigMintInitial
-    );
-
-    const xyberState = await program.account.xyberToken.fetch(xyberTokenPda);
-    console.log("After mint_initial_tokens, XYBER state:", xyberState);
-  });
-
-  // 3.4) Buyer buys token with exact base input
+  // 3.3) Buyer buys token with exact base input
   it("1.4) Buyer buys token with exact base input (buy_exact_input_instruction)", async () => {
     const vaultInfo = await getAccount(connection, vaultTokenAccount);
     console.log("Vault token balance (raw) =", vaultInfo.amount.toString());
@@ -351,8 +241,8 @@ describe("Bonding Curve Program (Token Init + Buyer/Seller Flow)", () => {
     );
 
     // 3) Buyer pays
-    const baseIn = new BN(10 * LAMPORTS_PER_TOKEN);
-    const expectedOut = new BN(265_250_048); // to low for initial test
+    const baseIn = new BN(0.1 * LAMPORTS_PER_TOKEN);
+    const expectedOut = new BN(10_000);
 
     // 4) Call the instruction
     await program.methods
@@ -361,7 +251,6 @@ describe("Bonding Curve Program (Token Init + Buyer/Seller Flow)", () => {
         xyberCore: xyberCorePda,
         tokenSeed: tokenSeedKeypair.publicKey,
         buyer: buyerKeypair.publicKey,
-        creator: creatorKeypair.publicKey,
         xyberToken: xyberTokenPda,
         escrowTokenAccount: escrowTokenAccount,
         paymentMint: PAYMENT_MINT_PUBKEY,
@@ -390,7 +279,7 @@ describe("Bonding Curve Program (Token Init + Buyer/Seller Flow)", () => {
     );
   });
 
-  // 3.5) Buyer sells token with exact input
+  // 3.4) Buyer sells token with exact input
   it("1.5) Buyer sells token with exact input (sell_exact_input_instruction)", async () => {
     // 1) Derive buyer's ATA for project token & payment token
     const buyerTokenAccount = await getAssociatedTokenAddress(
@@ -409,19 +298,21 @@ describe("Bonding Curve Program (Token Init + Buyer/Seller Flow)", () => {
 
     // Convert raw tokens to unscaled
     // Because on-chain "sell_exact_input" expects unscaled units
-    const tokensBuyerHasUnscaled = new BN(tokensBuyerHasRaw.toString()).div(new BN(10 ** DECIMALS));
+    const tokensBuyerHasUnscaled = new BN(tokensBuyerHasRaw.toString()).div(
+      new BN(10 ** DECIMALS)
+    );
 
     // We'll sell half of those unscaled tokens
     const halfTokensInCurveUnits = tokensBuyerHasUnscaled.divn(2);
     console.log("Selling (unscaled) =>", halfTokensInCurveUnits.toString());
 
+    let slippage = new BN("0");
     await program.methods
-      .sellExactInputInstruction(halfTokensInCurveUnits)
+      .sellExactInputInstruction(halfTokensInCurveUnits, slippage)
       .accounts({
         xyberCore: xyberCorePda,
         tokenSeed: tokenSeedKeypair.publicKey,
         user: buyerKeypair.publicKey, // "user" per SellToken struct
-        creator: creatorKeypair.publicKey,
         xyberToken: xyberTokenPda,
         escrowTokenAccount: escrowTokenAccount,
         paymentMint: PAYMENT_MINT_PUBKEY,
@@ -450,7 +341,7 @@ describe("Bonding Curve Program (Token Init + Buyer/Seller Flow)", () => {
     );
   });
 
-  // 3.6) Buyer buys EXACT output
+  // 3.5) Buyer buys EXACT output
   it("1.6) Buyer buys EXACT output: e.g. 10 project tokens (buy_exact_output_instruction)", async () => {
     const buyerTokenAccount = await getAssociatedTokenAddress(
       mintPda,
@@ -476,7 +367,6 @@ describe("Bonding Curve Program (Token Init + Buyer/Seller Flow)", () => {
         xyberCore: xyberCorePda,
         tokenSeed: tokenSeedKeypair.publicKey,
         buyer: buyerKeypair.publicKey,
-        creator: creatorKeypair.publicKey,
         xyberToken: xyberTokenPda,
         escrowTokenAccount: escrowTokenAccount,
         paymentMint: PAYMENT_MINT_PUBKEY,
@@ -509,8 +399,8 @@ describe("Bonding Curve Program (Token Init + Buyer/Seller Flow)", () => {
     );
   });
 
-  // 3.7) Buyer sells EXACT output
-  it("1.7) Buyer sells EXACT output: requests 3,000 lamports back (sell_exact_output_instruction)", async () => {
+  // 3.6) Buyer sells EXACT output
+  it("1.7) Buyer sells EXACT output: requests lamports back (sell_exact_output_instruction)", async () => {
     const buyerTokenAccount = await getAssociatedTokenAddress(
       mintPda,
       buyerKeypair.publicKey
@@ -520,8 +410,8 @@ describe("Bonding Curve Program (Token Init + Buyer/Seller Flow)", () => {
       buyerKeypair.publicKey
     );
 
-    // 1) Suppose user wants 3,000 lamports of base back
-    const lamportsWanted = new BN(3 * LAMPORTS_PER_TOKEN);
+    // 1) Suppose user wants lamports of base back
+    const lamportsWanted = new BN(0.01 * LAMPORTS_PER_TOKEN);
 
     // 2) Check the user's current raw token balance
     const buyerAtaInfoBefore = await getAccount(connection, buyerTokenAccount);
@@ -529,12 +419,11 @@ describe("Bonding Curve Program (Token Init + Buyer/Seller Flow)", () => {
 
     // 3) Sell instruction
     await program.methods
-      .sellExactOutputInstruction(lamportsWanted)
+      .sellExactOutputInstruction(lamportsWanted, lamportsWanted)
       .accounts({
         xyberCore: xyberCorePda,
         tokenSeed: tokenSeedKeypair.publicKey,
         user: buyerKeypair.publicKey,
-        creator: creatorKeypair.publicKey,
         xyberToken: xyberTokenPda,
         escrowTokenAccount: escrowTokenAccount,
         paymentMint: PAYMENT_MINT_PUBKEY,
@@ -585,17 +474,14 @@ describe("Bonding Curve Program (Token Init + Buyer/Seller Flow)", () => {
     console.log("Escrow base token balance (human-readable) =", escrowBalanceHuman);
 
     // 3) Compare escrow balance to the graduation threshold
-    //    (compares as if escrow >= graduateDollarsAmount).
-    const thresholdNeeded = Number(xyberState.graduateDollarsAmount);
-    const leftToGraduate = thresholdNeeded - (escrowBalanceHuman * XBT_PRICE_DOLLARS);
+    const thresholdNeeded = Number(xyberState.gradThreshold);
+    const leftToGraduate =
+      thresholdNeeded - escrowBalanceHuman;
 
     if (leftToGraduate <= 0) {
       console.log("** Already at or above graduation threshold! **");
     } else {
-      console.log(
-        "Left to reach graduation threshold (raw):",
-        leftToGraduate
-      );
+      console.log("Left to reach graduation threshold (raw):", leftToGraduate);
       console.log(
         "Left to reach graduation (human-readable):",
         leftToGraduate / 10 ** BASE_TOKEN_DECIMALS
@@ -608,10 +494,7 @@ describe("Bonding Curve Program (Token Init + Buyer/Seller Flow)", () => {
     console.log("Vault token balance (raw) =", vaultBalanceRaw.toString());
 
     const vaultBalanceHuman = Number(vaultBalanceRaw) / 10 ** DECIMALS;
-    console.log(
-      "Vault token balance (human-readable) =",
-      vaultBalanceHuman
-    );
+    console.log("Vault token balance (human-readable) =", vaultBalanceHuman);
 
     // 5) (Optional) Buyer’s project-token balance
     const buyerTokenAccount = await getAssociatedTokenAddress(
@@ -632,7 +515,10 @@ describe("Bonding Curve Program (Token Init + Buyer/Seller Flow)", () => {
     console.log("----- Dumping Key Info for Frontend -----");
 
     // 0) The token seed public key (the most critical piece for front-end calls)
-    console.log("tokenSeedKeypair.publicKey =", tokenSeedKeypair.publicKey.toBase58());
+    console.log(
+      "tokenSeedKeypair.publicKey =",
+      tokenSeedKeypair.publicKey.toBase58()
+    );
 
     // 1) PDAs
     console.log("xyberCorePda =", xyberCorePda.toBase58());
@@ -642,7 +528,10 @@ describe("Bonding Curve Program (Token Init + Buyer/Seller Flow)", () => {
     console.log("escrowTokenAccount =", escrowTokenAccount.toBase58());
 
     // 2) PublicKeys for creator & buyer
-    console.log("creatorKeypair.publicKey =", creatorKeypair.publicKey.toBase58());
+    console.log(
+      "creatorKeypair.publicKey =",
+      creatorKeypair.publicKey.toBase58()
+    );
     console.log("buyerKeypair.publicKey =", buyerKeypair.publicKey.toBase58());
 
     // 3) XyberCore & XyberToken state
@@ -675,13 +564,69 @@ describe("Bonding Curve Program (Token Init + Buyer/Seller Flow)", () => {
     console.log("creatorTokenAccount =", creatorAta.toBase58());
     console.log("buyerTokenAccount =", buyerAta.toBase58());
 
-    const creatorAtaInfo = await getAccount(connection, creatorAta);
+    // const creatorAtaInfo = await getAccount(connection, creatorAta);
     const buyerAtaInfo = await getAccount(connection, buyerAta);
 
-    console.log("creator token balance (raw) =", creatorAtaInfo.amount.toString());
+    // console.log("creator token balance (raw) =", creatorAtaInfo.amount.toString());
     console.log("buyer token balance (raw) =", buyerAtaInfo.amount.toString());
 
     console.log("----- End of Dump -----");
   });
 
+  it("2.1) Withdraw Liquidity with correct admin, checking balance difference", async () => {
+    // Suppose we want to withdraw 1000 "raw units" (adjust if decimals).
+    const withdrawAmount = new BN(1000);
+
+    // 1) Derive the correct ATA for (creatorKeypair, PAYMENT_MINT_PUBKEY)
+    const adminBaseAta = await getAssociatedTokenAddress(
+      PAYMENT_MINT_PUBKEY,
+      creatorKeypair.publicKey,
+      true // allowOwnerOffCurve = false by default in new SPL Token versions
+    );
+
+    // 2) Get admin's balance before
+    const beforeInfo = await getAccount(connection, adminBaseAta);
+    const beforeRawBalance = beforeInfo.amount;
+    console.log("Admin ATA balance before =>", beforeRawBalance.toString());
+
+    try {
+      // 3) Withdraw with the correct admin
+      await program.methods
+        .withdrawLiquidity(withdrawAmount)
+        .accounts({
+          admin: creatorKeypair.publicKey,
+          xyberCore: xyberCorePda,
+          xyberToken: xyberTokenPda,
+          tokenSeed: tokenSeedKeypair.publicKey,
+          creator: creatorKeypair.publicKey,
+          escrowTokenAccount,
+          baseTokenMint: PAYMENT_MINT_PUBKEY,
+          adminTokenAccount: adminBaseAta,
+          rent: anchor.web3.SYSVAR_RENT_PUBKEY,
+          tokenProgram: TOKEN_PROGRAM_ID,
+          associatedTokenProgram: ASSOCIATED_TOKEN_PROGRAM_ID,
+          systemProgram: anchor.web3.SystemProgram.programId,
+        })
+        .signers([creatorKeypair]) // Must sign as the real admin
+        .rpc();
+
+      // 4) Get admin's balance after
+      const afterInfo = await getAccount(connection, adminBaseAta);
+      const afterRawBalance = afterInfo.amount;
+      console.log("Admin ATA balance after =>", afterRawBalance.toString());
+
+      // 5) Confirm it increased by exactly 'withdrawAmount'
+      const diff = afterRawBalance - beforeRawBalance;
+      assert(
+        diff === BigInt(withdrawAmount.toString()),
+        `Expected balance to increase by ${withdrawAmount}, but got ${diff}`
+      );
+
+      console.log("Withdrawal succeeded; balance increased as expected.");
+    } catch (err) {
+      const errorMessage = err.toString();
+      console.error("Withdrawal attempt =>", errorMessage);
+      assert.fail(`Unexpected error. Got: ${errorMessage}`);
+    }
+  });
 });

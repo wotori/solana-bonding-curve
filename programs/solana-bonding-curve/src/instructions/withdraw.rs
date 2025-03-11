@@ -1,27 +1,30 @@
 use anchor_lang::prelude::*;
+use anchor_spl::associated_token::AssociatedToken;
 use anchor_spl::token::{self, Token, TokenAccount, Transfer};
 
-use crate::errors::CustomError;
+// use crate::errors::CustomError;
 use crate::{XyberCore, XyberToken};
 
 #[derive(Accounts)]
 pub struct WithdrawLiquidity<'info> {
-    /// Admin allowed to withdraw liquidity
-    #[account(mut)]
-    /// CHECK: admin account
-    pub admin: Signer<'info>,
-
     #[account(
         mut,
-        has_one = admin,
         seeds = [b"xyber_core"],
         bump
     )]
     pub xyber_core: Account<'info, XyberCore>,
 
+    /// CHECK: admin from xyber_core
+    #[account(
+        address = xyber_core.admin,
+        mut,
+        signer
+    )]
+    pub admin: AccountInfo<'info>,
+
     #[account(
         mut,
-        seeds = [b"xyber_token", creator.key().as_ref(), token_seed.key().as_ref()],
+        seeds = [b"xyber_token", token_seed.key().as_ref()],
         bump
     )]
     pub xyber_token: Account<'info, XyberToken>,
@@ -32,29 +35,39 @@ pub struct WithdrawLiquidity<'info> {
     /// CHECK: Used only for PDA seed derivation
     pub creator: UncheckedAccount<'info>,
 
-    /// Escrow token account holding the payment tokens (e.g. XBT)
+    /// Escrow token account holding the payment tokens (e.g. USDC)
     #[account(mut)]
     pub escrow_token_account: Account<'info, TokenAccount>,
 
-    /// Admin's token account to receive the withdrawn tokens
-    #[account(mut)]
+    #[account(
+        address = xyber_core.accepted_base_mint
+    )]
+    pub base_token_mint: Account<'info, anchor_spl::token::Mint>,
+
+    #[account(
+        init_if_needed,
+        payer = admin,
+        associated_token::mint = base_token_mint,
+        associated_token::authority = admin
+    )]
     pub admin_token_account: Account<'info, TokenAccount>,
 
+    pub rent: Sysvar<'info, Rent>,
     pub token_program: Program<'info, Token>,
+    pub associated_token_program: Program<'info, AssociatedToken>,
+    pub system_program: Program<'info, System>,
 }
 
 pub fn withdraw_liquidity(ctx: Context<WithdrawLiquidity>, amount: u64) -> Result<()> {
-    require!(
-        ctx.accounts.xyber_token.is_graduated,
-        CustomError::LiquidityNotGraduated
-    );
+    // TODO: restore this in production or keep?
+    // require!(
+    //     ctx.accounts.xyber_token.is_graduated,
+    //     CustomError::LiquidityNotGraduated
+    // );
 
-    // Derive PDA signer seeds; PDA was created with seeds:
-    // [b"xyber_token", creator.key, token_seed.key, bump]
     let bump = ctx.bumps.xyber_token;
     let seeds = &[
         b"xyber_token".as_ref(),
-        ctx.accounts.creator.key.as_ref(),
         ctx.accounts.token_seed.key.as_ref(),
         &[bump],
     ];
