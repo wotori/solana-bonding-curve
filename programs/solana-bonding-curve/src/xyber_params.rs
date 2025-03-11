@@ -10,7 +10,6 @@ pub struct InitCoreParams {
     pub grad_threshold: Option<u64>,
     pub bonding_curve: Option<SmoothBondingCurve>,
     pub accepted_base_mint: Option<Pubkey>,
-    pub graduate_dollars_amount: Option<u32>,
 }
 
 #[derive(AnchorSerialize, AnchorDeserialize, Clone)]
