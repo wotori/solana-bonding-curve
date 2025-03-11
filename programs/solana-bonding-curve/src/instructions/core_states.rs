@@ -1,5 +1,10 @@
-use crate::{xyber_params::InitCoreParams, XyberCore};
 use anchor_lang::prelude::*;
+use anchor_spl::{
+    associated_token::AssociatedToken,
+    token::{Mint, Token, TokenAccount},
+};
+
+use crate::{xyber_params::InitCoreParams, XyberCore};
 
 pub fn fill_core_fields(core: &mut XyberCore, params: &InitCoreParams) {
     if let Some(admin) = params.admin {
@@ -30,7 +35,22 @@ pub struct UpdateXyberCore<'info> {
     )]
     pub xyber_core: Account<'info, XyberCore>,
 
+    #[account(mut)]
+    pub new_accepted_base_mint: Account<'info, Mint>,
+
+    #[account(
+        init_if_needed,
+        payer = admin,
+        associated_token::mint = new_accepted_base_mint,
+        associated_token::authority = xyber_core
+    )]
+    pub escrow_token_account: Account<'info, TokenAccount>,
+
     pub system_program: Program<'info, System>,
+    pub token_program: Program<'info, Token>,
+
+    #[account(address = anchor_spl::associated_token::ID)]
+    pub associated_token_program: Program<'info, AssociatedToken>,
 }
 
 pub fn update_xyber_core_instruction(

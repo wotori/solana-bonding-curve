@@ -13,7 +13,6 @@ import {
   ASSOCIATED_TOKEN_PROGRAM_ID,
 } from "@solana/spl-token";
 import { assert } from "chai";
-import path from "path";
 import { BondingCurve } from "../target/types/bonding_curve";
 import { BUYER_KEYPAIR_PATH, CREATOR_KEYPAIR_PATH, DEVNET_URL, METAPLEX_PROGRAM_ID, PAYMENT_MINT_PUBKEY, TOKEN_FACTORY_PROGRAM_ID } from "./constants";
 
@@ -153,6 +152,11 @@ describe("Bonding Curve Program (Token Init + Buyer/Seller Flow)", () => {
       acceptedBaseMint: PAYMENT_MINT_PUBKEY,
     };
 
+    const escrowTokenAccountPda = await getAssociatedTokenAddress(
+      PAYMENT_MINT_PUBKEY,
+      xyberCorePda,
+      true // true = allowOwnerOffCurve if xyberCorePda is a PDA
+    );
 
     // Construct the instruction
     const ixUpdate = await program.methods
@@ -160,6 +164,12 @@ describe("Bonding Curve Program (Token Init + Buyer/Seller Flow)", () => {
       .accounts({
         admin: creatorKeypair.publicKey,
         xyberCore: xyberCorePda,
+
+        newAcceptedBaseMint: PAYMENT_MINT_PUBKEY,
+        escrowTokenAccount: escrowTokenAccountPda,
+        tokenProgram: TOKEN_PROGRAM_ID,
+        associatedTokenProgram: ASSOCIATED_TOKEN_PROGRAM_ID,
+
         systemProgram: anchor.web3.SystemProgram.programId,
       })
       .signers([creatorKeypair])

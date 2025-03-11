@@ -31,5 +31,6 @@ export const BUYER_KEYPAIR_PATH = path.join(
 
 // Base (payment) token mint
 export const PAYMENT_MINT_PUBKEY = new PublicKey(
-    "2fV8xnkYe5pjuQh6AsexFHJDUUdycUVU3ioRsJU4wsh2"
+    // "2fV8xnkYe5pjuQh6AsexFHJDUUdycUVU3ioRsJU4wsh2"
+    "3EsoJyspCZ4tjcPX8v4UdvayBub9h9cxcJQvwAXqs5KZ"
 );
