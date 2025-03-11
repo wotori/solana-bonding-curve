@@ -128,11 +128,15 @@ pub fn buy_exact_input_instruction(
             authority: ctx.accounts.buyer.to_account_info(),
         },
     );
-    token::transfer(transfer_payment_ctx, payment_amount)?;
 
-    // 5) Check graduation condition.
-    let real_escrow_tokens = ctx.accounts.escrow_token_account.amount
-        / 10_u64.pow(ctx.accounts.payment_mint.decimals.into());
+    let old_escrow_balance = ctx.accounts.escrow_token_account.amount;
+    token::transfer(transfer_payment_ctx, payment_amount)?;
+    let updated_escrow_balance = old_escrow_balance
+        .checked_add(payment_amount)
+        .ok_or(CustomError::MathOverflow)?;
+
+    let real_escrow_tokens =
+        updated_escrow_balance / 10_u64.pow(ctx.accounts.payment_mint.decimals as u32);
 
     if real_escrow_tokens >= ctx.accounts.xyber_core.grad_threshold {
         ctx.accounts.xyber_token.is_graduated = true;
@@ -215,11 +219,15 @@ pub fn buy_exact_output_instruction(
             authority: ctx.accounts.buyer.to_account_info(),
         },
     );
-    token::transfer(transfer_payment_ctx, payment_required)?;
 
-    // 5) Check graduation.
-    let real_escrow_tokens = ctx.accounts.escrow_token_account.amount
-        / 10_u64.pow(ctx.accounts.payment_mint.decimals.into());
+    let old_escrow_balance = ctx.accounts.escrow_token_account.amount;
+    token::transfer(transfer_payment_ctx, payment_required)?;
+    let updated_escrow_balance = old_escrow_balance
+        .checked_add(payment_required)
+        .ok_or(CustomError::MathOverflow)?;
+
+    let real_escrow_tokens =
+        updated_escrow_balance / 10_u64.pow(ctx.accounts.payment_mint.decimals as u32);
 
     if real_escrow_tokens >= ctx.accounts.xyber_core.grad_threshold {
         ctx.accounts.xyber_token.is_graduated = true;

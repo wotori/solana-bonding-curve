@@ -24,7 +24,7 @@ const DECIMALS = 9;
 const LAMPORTS_PER_TOKEN = 10 ** DECIMALS;
 const BONDING_K_VIRTUAL = new BN("32190005730").mul(new BN(LAMPORTS_PER_TOKEN));
 const VIRTUAL_POOL_OFFSET = new BN(30 * LAMPORTS_PER_TOKEN);
-const GRADUATE_THRESHOLD = new BN("4285");
+const GRADUATE_THRESHOLD = new BN("428");
 
 // Metadata parameters for the project token
 const now = new Date();
@@ -128,7 +128,7 @@ describe("Bonding Curve Program (Token Init + Buyer/Seller Flow)", () => {
   // ------------------------------------------------------------------
   // 3) Tests
   // ------------------------------------------------------------------
-  it.only("1.2) update_core_instruction with random gradThreshold & small graduateDollars offset", async () => {
+  it("1.2) update_core_instruction with random gradThreshold & small graduateDollars offset", async () => {
     console.log("----- Step 2: update_core_instruction -----");
 
     // await program.methods.closeXyberCoreInstruction() // uncomment to recreate the core if needed
@@ -568,6 +568,80 @@ describe("Bonding Curve Program (Token Init + Buyer/Seller Flow)", () => {
     console.log("buyer token balance (raw) =", buyerAtaInfo.amount.toString());
 
     console.log("----- End of Dump -----");
+  });
+
+  // 1.95) Buyer buys EXACT input => 500 base_in => check isGraduated, log escrow balance
+  it("1.95) Buyer buys EXACT input => 500 base_in => check isGraduated, log escrow", async () => {
+    console.log("----- Step 1.95: buy_exact_input_instruction (base_in=500) -----");
+
+    // 1) Find the ATA for the buyer
+    const buyerTokenAccount = await getAssociatedTokenAddress(
+      mintPda,
+      buyerKeypair.publicKey
+    );
+    const buyerPaymentAccount = await getAssociatedTokenAddress(
+      PAYMENT_MINT_PUBKEY,
+      buyerKeypair.publicKey
+    );
+
+    // 2) Construct baseIn = 500 * 10^9, assuming we have 9 decimals in the base token (USDC-like)
+    const baseIn = new BN(500).mul(new BN(LAMPORTS_PER_TOKEN));
+    const minAmountOut = new BN(0);
+
+    console.log(
+      "Buyer paying baseIn =",
+      baseIn.toString(),
+      " (which is 500 in human-readable form if decimals=9)"
+    );
+
+    // 3) Call buyExactInputInstruction
+    await program.methods
+      .buyExactInputInstruction(baseIn, minAmountOut)
+      .accounts({
+        xyberCore: xyberCorePda,
+        tokenSeed: tokenSeedKeypair.publicKey,
+        buyer: buyerKeypair.publicKey,
+        xyberToken: xyberTokenPda,
+        escrowTokenAccount: escrowTokenAccount,
+        paymentMint: PAYMENT_MINT_PUBKEY,
+        mint: mintPda,
+        vaultTokenAccount: vaultTokenAccount,
+        buyerTokenAccount: buyerTokenAccount,
+        buyerPaymentAccount: buyerPaymentAccount,
+        associatedTokenProgram: ASSOCIATED_TOKEN_PROGRAM_ID,
+        tokenProgram: TOKEN_PROGRAM_ID,
+        systemProgram: anchor.web3.SystemProgram.programId,
+      })
+      .signers([buyerKeypair])
+      .rpc();
+
+    console.log("BuyExactInput(500) finished => Checking escrow & graduation...");
+
+    // 4) Log the escrow balance
+    const escrowInfo = await getAccount(connection, escrowTokenAccount);
+    const escrowBalanceRaw = escrowInfo.amount;
+    console.log("Escrow balance (raw) =", escrowBalanceRaw.toString());
+
+    const escrowBalanceHuman =
+      Number(escrowBalanceRaw) / Number(LAMPORTS_PER_TOKEN);
+    console.log("Escrow balance (human-readable) =", escrowBalanceHuman);
+
+    // 5) Check the isGraduated field
+    const xyberTokenState = await program.account.xyberToken.fetch(xyberTokenPda);
+    console.log("xyberTokenState:", xyberTokenState);
+
+    if (xyberTokenState.isGraduated) {
+      console.log("✅ Token IS graduated!");
+    } else {
+      console.log("❌ Token is NOT graduated yet!");
+    }
+
+    // 6) Add a strict assert, expecting graduation == true
+    assert.equal(
+      xyberTokenState.isGraduated,
+      true,
+      "Expecting that token is graduated"
+    );
   });
 
   it("2.1) Withdraw Liquidity with correct admin, checking balance difference", async () => {
