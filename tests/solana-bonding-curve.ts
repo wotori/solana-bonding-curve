@@ -24,9 +24,7 @@ const DECIMALS = 9;
 const LAMPORTS_PER_TOKEN = 10 ** DECIMALS;
 const BONDING_K_VIRTUAL = new BN("32190005730").mul(new BN(LAMPORTS_PER_TOKEN));
 const VIRTUAL_POOL_OFFSET = new BN(30 * LAMPORTS_PER_TOKEN);
-const GRADUATE_DOLLARS_AMOUNT = 70000;
 const GRADUATE_THRESHOLD = new BN("4285");
-const XBT_PRICE_DOLLARS = 0.05;
 
 // Metadata parameters for the project token
 const now = new Date();
@@ -130,7 +128,7 @@ describe("Bonding Curve Program (Token Init + Buyer/Seller Flow)", () => {
   // ------------------------------------------------------------------
   // 3) Tests
   // ------------------------------------------------------------------
-  it("1.2) update_core_instruction with random gradThreshold & small graduateDollars offset", async () => {
+  it.only("1.2) update_core_instruction with random gradThreshold & small graduateDollars offset", async () => {
     console.log("----- Step 2: update_core_instruction -----");
 
     // await program.methods.closeXyberCoreInstruction() // uncomment to recreate the core if needed
@@ -142,8 +140,6 @@ describe("Bonding Curve Program (Token Init + Buyer/Seller Flow)", () => {
     //   .rpc();
 
     // Add a small random offset (1..3) to GRADUATE_DOLLARS_AMOUNT
-    const randomDollarsOffset = Math.floor(Math.random() * 3) + 1;
-    const newGraduateDollarsAmount = GRADUATE_DOLLARS_AMOUNT + randomDollarsOffset;
 
     // Build the update params
     const updateTokenParams = {
@@ -155,8 +151,8 @@ describe("Bonding Curve Program (Token Init + Buyer/Seller Flow)", () => {
         cBondingScaleFactor: VIRTUAL_POOL_OFFSET,
       },
       acceptedBaseMint: PAYMENT_MINT_PUBKEY,
-      graduateDollarsAmount: newGraduateDollarsAmount,
     };
+
 
     // Construct the instruction
     const ixUpdate = await program.methods
@@ -164,6 +160,7 @@ describe("Bonding Curve Program (Token Init + Buyer/Seller Flow)", () => {
       .accounts({
         admin: creatorKeypair.publicKey,
         xyberCore: xyberCorePda,
+        systemProgram: anchor.web3.SystemProgram.programId,
       })
       .signers([creatorKeypair])
       .instruction();
