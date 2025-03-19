@@ -145,6 +145,7 @@ pub fn buy_exact_input_instruction(
             escrow_balance: ctx.accounts.escrow_token_account.amount,
             vault: ctx.accounts.vault_token_account.key(),
             creator: ctx.accounts.xyber_token.creator.key(),
+            escrow: ctx.accounts.escrow_token_account.key(),
         });
     }
 
@@ -236,6 +237,7 @@ pub fn buy_exact_output_instruction(
             escrow_balance: ctx.accounts.escrow_token_account.amount,
             vault: ctx.accounts.vault_token_account.key(),
             creator: ctx.accounts.xyber_token.creator.key(),
+            escrow: ctx.accounts.escrow_token_account.key(),
         });
     }
 

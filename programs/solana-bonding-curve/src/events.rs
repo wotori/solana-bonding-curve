@@ -6,4 +6,5 @@ pub struct GraduationTriggered {
     pub escrow_balance: u64,
     pub vault: Pubkey,
     pub creator: Pubkey,
+    pub escrow: Pubkey,
 }
