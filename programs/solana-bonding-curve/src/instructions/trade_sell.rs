@@ -30,6 +30,7 @@ pub struct SellToken<'info> {
         bump
     )]
     pub xyber_token: Account<'info, XyberToken>,
+    
 
     /// The escrow SPL token account that holds the *payment* tokens (e.g. USDC).
     #[account(

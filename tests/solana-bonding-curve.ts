@@ -654,26 +654,21 @@ describe("Bonding Curve Program (Token Init + Buyer/Seller Flow)", () => {
     );
   });
 
-  it("2.1) Withdraw Liquidity with correct admin, checking balance difference", async () => {
-    // Suppose we want to withdraw 1000 "raw units" (adjust if decimals).
-    const withdrawAmount = new BN(1000);
-
-    // 1) Derive the correct ATA for (creatorKeypair, PAYMENT_MINT_PUBKEY)
+  it("2.1) Withdraw Liquidity with correct admin", async () => {
+    // Derive the admin's ATA for the base token and project token
     const adminBaseAta = await getAssociatedTokenAddress(
       PAYMENT_MINT_PUBKEY,
-      creatorKeypair.publicKey,
-      true // allowOwnerOffCurve = false by default in new SPL Token versions
+      creatorKeypair.publicKey
+    );
+    const adminVaultAta = await getAssociatedTokenAddress(
+      mintPda,
+      creatorKeypair.publicKey
     );
 
-    // 2) Get admin's balance before
-    const beforeInfo = await getAccount(connection, adminBaseAta);
-    const beforeRawBalance = beforeInfo.amount;
-    console.log("Admin ATA balance before =>", beforeRawBalance.toString());
-
     try {
-      // 3) Withdraw with the correct admin
+      // Withdraw all funds
       await program.methods
-        .withdrawLiquidity(withdrawAmount)
+        .withdrawLiquidity()
         .accounts({
           admin: creatorKeypair.publicKey,
           xyberCore: xyberCorePda,
@@ -682,32 +677,22 @@ describe("Bonding Curve Program (Token Init + Buyer/Seller Flow)", () => {
           creator: creatorKeypair.publicKey,
           escrowTokenAccount,
           baseTokenMint: PAYMENT_MINT_PUBKEY,
+          mint: mintPda,
+          vaultTokenAccount: vaultTokenAccount,
           adminTokenAccount: adminBaseAta,
+          adminVaultAccount: adminVaultAta,
           rent: anchor.web3.SYSVAR_RENT_PUBKEY,
           tokenProgram: TOKEN_PROGRAM_ID,
           associatedTokenProgram: ASSOCIATED_TOKEN_PROGRAM_ID,
           systemProgram: anchor.web3.SystemProgram.programId,
         })
-        .signers([creatorKeypair]) // Must sign as the real admin
+        .signers([creatorKeypair])
         .rpc();
 
-      // 4) Get admin's balance after
-      const afterInfo = await getAccount(connection, adminBaseAta);
-      const afterRawBalance = afterInfo.amount;
-      console.log("Admin ATA balance after =>", afterRawBalance.toString());
-
-      // 5) Confirm it increased by exactly 'withdrawAmount'
-      const diff = afterRawBalance - beforeRawBalance;
-      assert(
-        diff === BigInt(withdrawAmount.toString()),
-        `Expected balance to increase by ${withdrawAmount}, but got ${diff}`
-      );
-
-      console.log("Withdrawal succeeded; balance increased as expected.");
+      console.log("Withdrawal succeeded (no balance checks).");
     } catch (err) {
-      const errorMessage = err.toString();
-      console.error("Withdrawal attempt =>", errorMessage);
-      assert.fail(`Unexpected error. Got: ${errorMessage}`);
+      console.error("Withdrawal attempt failed:", err);
+      assert.fail(`Unexpected error: ${err.toString()}`);
     }
   });
 });

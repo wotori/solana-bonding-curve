@@ -122,8 +122,8 @@ pub mod bonding_curve {
         instructions::sell_exact_output_instruction(ctx, lamports, max_tokens_in)
     }
 
-    pub fn withdraw_liquidity(ctx: Context<WithdrawLiquidity>, amount: u64) -> Result<()> {
-        instructions::withdraw_liquidity(ctx, amount)
+    pub fn withdraw_liquidity(ctx: Context<WithdrawLiquidity>) -> Result<()> {
+        instructions::withdraw_liquidity(ctx)
     }
 
     pub fn close_xyber_core_instruction(_ctx: Context<CloseXyberCore>) -> Result<()> {
