@@ -56,6 +56,9 @@ pub struct XyberToken {
 
     // The creator's Pubkey
     pub creator: Pubkey,
+
+    // used for managing grad_threshold from XyberCore
+    pub total_chains: u8,
 }
 
 impl XyberToken {
@@ -63,7 +66,8 @@ impl XyberToken {
         + 1  // is_graduated
         + 32  // mint
         + 32  // vault
-        + 32; // creator
+        + 32 // creator
+        + 1; // total_chains
 }
 
 #[program]

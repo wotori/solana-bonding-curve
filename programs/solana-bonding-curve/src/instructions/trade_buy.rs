@@ -138,7 +138,12 @@ pub fn buy_exact_input_instruction(
     let real_escrow_tokens =
         updated_escrow_balance / 10_u64.pow(ctx.accounts.payment_mint.decimals as u32);
 
-    if real_escrow_tokens >= ctx.accounts.xyber_core.grad_threshold {
+    let grad_threshold = effective_threshold_for_chains(
+        ctx.accounts.xyber_core.grad_threshold,
+        ctx.accounts.xyber_token.total_chains,
+    )?;
+
+    if real_escrow_tokens >= grad_threshold {
         ctx.accounts.xyber_token.is_graduated = true;
         emit!(GraduationTriggered {
             buyer: ctx.accounts.buyer.key(),
@@ -227,10 +232,15 @@ pub fn buy_exact_output_instruction(
         .checked_add(payment_required)
         .ok_or(CustomError::MathOverflow)?;
 
+    let grad_threshold = effective_threshold_for_chains(
+        ctx.accounts.xyber_core.grad_threshold,
+        ctx.accounts.xyber_token.total_chains,
+    )?;
+
     let real_escrow_tokens =
         updated_escrow_balance / 10_u64.pow(ctx.accounts.payment_mint.decimals as u32);
 
-    if real_escrow_tokens >= ctx.accounts.xyber_core.grad_threshold {
+    if real_escrow_tokens >= grad_threshold {
         ctx.accounts.xyber_token.is_graduated = true;
         emit!(GraduationTriggered {
             buyer: ctx.accounts.buyer.key(),
@@ -265,4 +275,30 @@ pub fn buy_exact_output_instruction(
     token::transfer(transfer_tokens_ctx, tokens_out_scaled)?;
 
     Ok(())
+}
+
+pub fn effective_threshold_for_chains(
+    base_threshold: u64,
+    chain_count: u8,
+) -> std::result::Result<u64, CustomError> {
+    if chain_count <= 1 {
+        return Ok(base_threshold);
+    }
+
+    let extra_chains = chain_count.saturating_sub(1);
+    let total_percent = 100_u64
+        .checked_add(
+            25_u64
+                .checked_mul(extra_chains as u64)
+                .ok_or(CustomError::MathOverflow)?,
+        )
+        .ok_or(CustomError::MathOverflow)?;
+
+    let new_threshold = base_threshold
+        .checked_mul(total_percent)
+        .ok_or(CustomError::MathOverflow)?
+        .checked_div(100)
+        .ok_or(CustomError::MathOverflow)?;
+
+    Ok(new_threshold)
 }

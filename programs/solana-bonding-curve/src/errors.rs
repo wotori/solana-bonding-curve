@@ -11,8 +11,8 @@ pub enum CustomError {
     #[msg("Unauthorized: Caller is not authorized to perform this action.")]
     Unauthorized,
 
-    #[msg("Liquidity not graduated: pool has not reached the required threshold.")]
-    LiquidityNotGraduated,
+    #[msg("Bonding Curve not graduated: pool has not reached the required threshold.")]
+    BondingCurveNotGraduated,
 
     #[msg("Insufficient token balance in the vault to fulfill the request.")]
     InsufficientTokenVaultBalance,
