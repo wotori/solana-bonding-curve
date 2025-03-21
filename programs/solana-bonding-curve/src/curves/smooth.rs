@@ -220,14 +220,17 @@ impl BondingCurveTrait for SmoothBondingCurve {
 mod tests {
     use super::*;
     use anchor_lang::solana_program::native_token::LAMPORTS_PER_SOL;
+    use xyber_params::SCALE_FACTOR;
 
     mod xyber_params {
         use anchor_lang::solana_program::native_token::LAMPORTS_PER_SOL;
 
         // Example values; replace with actual parameters
+        pub const SCALE_FACTOR: u128 = 300;
         pub const TOTAL_TOKENS: u64 = 1_073_000_191;
-        pub const BONDING_SCALE_FACTOR: u128 = 32_190_005_730 * (LAMPORTS_PER_SOL as u128);
-        pub const VIRTUAL_POOL_OFFSET: u64 = 30 * LAMPORTS_PER_SOL;
+        pub const BONDING_SCALE_FACTOR: u128 =
+            (32_190_005_730 * SCALE_FACTOR) * (LAMPORTS_PER_SOL as u128);
+        pub const VIRTUAL_POOL_OFFSET: u64 = (30 * SCALE_FACTOR as u64) * LAMPORTS_PER_SOL;
     }
 
     /// Helper function for building the default test curve.
@@ -243,7 +246,7 @@ mod tests {
     fn test_buy_exact_input() {
         let curve = default_curve();
         let old_x = 0; // start with empty pool
-        let base_in = (10 * LAMPORTS_PER_SOL) as u64;
+        let base_in = (3 as u64 * LAMPORTS_PER_SOL) as u64;
 
         let (minted, new_x) = curve.buy_exact_input(old_x, base_in).unwrap();
         println!("minted: {}", minted);
@@ -251,7 +254,7 @@ mod tests {
 
         // We'll do a rough check on minted tokens
         assert!(
-            (265_250_000..270_300_000).contains(&minted),
+            (357_000..358_000).contains(&minted),
             "Minted tokens out of expected range: {}",
             minted
         );
@@ -263,7 +266,7 @@ mod tests {
 
         // Suppose old_x is 0 at the beginning.
         let old_x = 0;
-        let tokens_out = 10_000;
+        let tokens_out = 10_000 as u64;
 
         let (lamports_required, new_x) = curve.buy_exact_output(old_x, tokens_out).unwrap();
         println!("Tokens to buy: {}", tokens_out);
@@ -325,7 +328,7 @@ mod tests {
         let mut x = 0;
 
         // First, buy some tokens so we can sell them.
-        let sol_in = (0.1 * LAMPORTS_PER_SOL as f64) as u64;
+        let sol_in = (0.1 * LAMPORTS_PER_SOL as f64 * SCALE_FACTOR as f64) as u64;
         let (minted_tokens, new_x) = curve.buy_exact_input(x, sol_in).unwrap();
         x = new_x; // update the pool deposit
         assert!(minted_tokens > 0);
@@ -349,7 +352,7 @@ mod tests {
         let mut x = 0;
 
         // Buy some tokens first
-        let base_in = (0.1 * LAMPORTS_PER_SOL as f64) as u64;
+        let base_in = (0.1 * LAMPORTS_PER_SOL as f64 * SCALE_FACTOR as f64) as u64;
         let (minted_tokens, new_x) = curve.buy_exact_input(x, base_in).unwrap();
         x = new_x;
         assert!(minted_tokens > 0, "Initial token minting failed");
@@ -455,14 +458,15 @@ mod tests {
     fn test_buy_until_70k_liquidity() {
         let curve = default_curve();
         let target_liquidity_usd = 70_000.0;
-        let sol_price_usd = 250.0;
+        let sol_price_usd = 0.05;
         let target_sol_in_pool = target_liquidity_usd / sol_price_usd;
 
         // Start with an empty pool
         let mut x: u64 = 0;
 
-        let base_in_per_step: u64 = LAMPORTS_PER_SOL; // 1 SOL per iteration
-        let max_iterations: u16 = 1000;
+        let base_in_raw = 5000;
+        let base_in_per_step: u64 = base_in_raw as u64 * LAMPORTS_PER_SOL; // 1 SOL per iteration
+        let max_iterations: u32 = 1_000;
         let mut iteration = 0;
 
         // Keep buying until x (in SOL) ~ target_sol_in_pool
@@ -479,16 +483,25 @@ mod tests {
             let new_price = approximate_price(&curve, x);
 
             println!(
-                "Iteration {}: +1 SOL => minted {} tokens, approx price={:.2e}, total SOL={:.4}",
-                iteration, minted, new_price, total_pool_sol
+                "Iteration {}: +{} Xyber => minted {} tokens, approx price={:.2e}, total Xyber={:.1}",
+                iteration, base_in_raw, minted, new_price, total_pool_sol
             );
         }
 
         let final_sol = (x as f64) / (LAMPORTS_PER_SOL as f64);
         let final_usd = final_sol * sol_price_usd;
+
+        // Calculate how many tokens have been minted (y_of_x) and how many are left
+        let minted_so_far = curve.y_of_x(x);
+        let tokens_left = curve.a_total_tokens.saturating_sub(minted_so_far);
+
         println!(
-            "Reached target liquidity.\n  - Final SOL in pool: {:.2}\n  - Final USD value: ${:.2}\n",
+            "Reached target liquidity.\n  - Final Xyber in pool: {:.2}\n  - Final USD value: ${:.2}\n",
             final_sol, final_usd
+        );
+        println!(
+            "Total minted so far: {}. Tokens left in curve: {}.",
+            minted_so_far, tokens_left
         );
 
         assert!(

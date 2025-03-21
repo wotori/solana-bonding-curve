@@ -21,11 +21,25 @@ import { BUYER_KEYPAIR_PATH, CREATOR_KEYPAIR_PATH, DEVNET_URL, METAPLEX_PROGRAM_
 const TOTAL_TOKENS = new BN("1073000191");
 const DECIMALS = 9;
 const LAMPORTS_PER_TOKEN = 10 ** DECIMALS;
-const BONDING_K_VIRTUAL = new BN("975000000").mul(new BN(LAMPORTS_PER_TOKEN));
-const VIRTUAL_POOL_OFFSET = new BN(927700 * LAMPORTS_PER_TOKEN);
+
+// Adoptation (Xyber)
+// const scaleFactor = new BN("300");
+// const BONDING_K_VIRTUAL = new BN("32190005730")
+//   .mul(scaleFactor)
+//   .mul(new BN(LAMPORTS_PER_TOKEN));
+
+// const VIRTUAL_POOL_OFFSET = new BN(30)
+//   .mul(scaleFactor)
+//   .mul(new BN(LAMPORTS_PER_TOKEN));
+
+// const GRADUATE_THRESHOLD = new BN("2000000");
+
+// Original (SOL)
+const BONDING_K_VIRTUAL = new BN("32190005730").mul(new BN(LAMPORTS_PER_TOKEN));
+const VIRTUAL_POOL_OFFSET = new BN(30 * LAMPORTS_PER_TOKEN);
 const GRADUATE_THRESHOLD = new BN("428");
 
-// Metadata parameters for the project token
+// Metadata parameters for the project toke
 const now = new Date();
 const year = now.getFullYear().toString().slice(2);
 const month = String(now.getMonth() + 1).padStart(2, "0");
@@ -195,6 +209,7 @@ describe("Bonding Curve Program (Token Init + Buyer/Seller Flow)", () => {
         name: tokenName,
         symbol: tokenSymbol,
         uri: tokenUri,
+        totalChains: 1,
       })
       .accounts({
         xyberCore: xyberCorePda,
