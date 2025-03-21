@@ -17,4 +17,6 @@ pub struct TokenParams {
     pub name: String,
     pub symbol: String,
     pub uri: String,
+
+    pub total_chains: u8,
 }

@@ -1,8 +1,8 @@
+use crate::errors::CustomError;
+use crate::{XyberCore, XyberToken};
 use anchor_lang::prelude::*;
 use anchor_spl::associated_token::AssociatedToken;
 use anchor_spl::token::{self, Mint, Token, TokenAccount, Transfer};
-// use crate::errors::CustomError;
-use crate::{XyberCore, XyberToken};
 
 #[derive(Accounts)]
 pub struct WithdrawLiquidity<'info> {
@@ -75,11 +75,10 @@ pub struct WithdrawLiquidity<'info> {
     pub system_program: Program<'info, System>,
 }
 pub fn withdraw_liquidity(ctx: Context<WithdrawLiquidity>) -> Result<()> {
-    // TODO: restore this in production or keep?
-    // require!(
-    //     ctx.accounts.xyber_token.is_graduated,
-    //     CustomError::LiquidityNotGraduated
-    // );
+    require!(
+        ctx.accounts.xyber_token.is_graduated,
+        CustomError::BondingCurveNotGraduated
+    );
 
     let bump = ctx.bumps.xyber_token;
     let seeds = &[
