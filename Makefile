@@ -12,3 +12,9 @@ bdtest:
 
 qa-xyber-core-stats:
 	npx mocha -r ts-node/register tests/xybercore-stats.spec.ts --timeout 100000
+
+setup:
+	avm use 0.29.0 && agave-install init 1.18.26
+
+build:
+	anchor run build
