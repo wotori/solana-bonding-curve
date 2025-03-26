@@ -20,7 +20,7 @@ const PAYMENT_MINT_PUBKEY = new PublicKey(
 );
 
 const XYBER_PROGRAM_ID = new PublicKey(
-    'BdHFqKoxuP3nFChJU7uLx39CJMF88SxH5ZkX4oZ5YqcD'
+    'EHvS7Ts5k8Dvd8kXAyYYq2CmFVrLFyesTzuRC6D5KcTg'
 );
 
 export const deriveAddresses = async (

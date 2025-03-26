@@ -161,7 +161,7 @@ pub fn sell_exact_input_instruction(
         user: ctx.accounts.user.key(),
         base_amount: base_token_amount,
         token_amount: tokens_to_transfer,
-        vault_token_amount: ctx.accounts.vault_token_account.amount,
+        vault_token_amount: escrow_balance,
     });
 
     Ok(())
@@ -250,7 +250,7 @@ pub fn sell_exact_output_instruction(
         user: ctx.accounts.user.key(),
         base_amount: base_tokens_requested,
         token_amount: user_tokens_required,
-        vault_token_amount: ctx.accounts.vault_token_account.amount,
+        vault_token_amount: escrow_balance,
     });
 
     Ok(())

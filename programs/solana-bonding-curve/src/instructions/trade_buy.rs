@@ -131,9 +131,8 @@ pub fn buy_exact_input_instruction(
         },
     );
 
-    let old_escrow_balance = ctx.accounts.escrow_token_account.amount;
     token::transfer(transfer_payment_ctx, payment_amount)?;
-    let updated_escrow_balance = old_escrow_balance
+    let updated_escrow_balance = escrow_balance
         .checked_add(payment_amount)
         .ok_or(CustomError::MathOverflow)?;
 
@@ -144,15 +143,6 @@ pub fn buy_exact_input_instruction(
         ctx.accounts.xyber_core.grad_threshold,
         ctx.accounts.xyber_token.total_chains,
     )?;
-
-    emit!(XyberSwapEvent {
-        ix_type: XyberInstructionType::BuyExactIn,
-        token_seed: ctx.accounts.token_seed.key(),
-        user: ctx.accounts.buyer.key(),
-        base_amount: payment_amount,
-        token_amount: actual_tokens_out,
-        vault_token_amount: ctx.accounts.vault_token_account.amount,
-    });
 
     if real_escrow_tokens >= grad_threshold {
         ctx.accounts.xyber_token.is_graduated = true;
@@ -186,6 +176,15 @@ pub fn buy_exact_input_instruction(
         signer_seeds,
     );
     token::transfer(vault_transfer_ctx, token_amount_with_decimals)?;
+
+    emit!(XyberSwapEvent {
+        ix_type: XyberInstructionType::BuyExactIn,
+        token_seed: ctx.accounts.token_seed.key(),
+        user: ctx.accounts.buyer.key(),
+        base_amount: payment_amount,
+        token_amount: actual_tokens_out,
+        vault_token_amount: escrow_balance,
+    });
 
     Ok(())
 }
@@ -251,15 +250,6 @@ pub fn buy_exact_output_instruction(
     let real_escrow_tokens =
         updated_escrow_balance / 10_u64.pow(ctx.accounts.payment_mint.decimals as u32);
 
-    emit!(XyberSwapEvent {
-        ix_type: XyberInstructionType::BuyExactOut,
-        token_seed: ctx.accounts.token_seed.key(),
-        user: ctx.accounts.buyer.key(),
-        base_amount: payment_required,
-        token_amount: tokens_out,
-        vault_token_amount: ctx.accounts.vault_token_account.amount,
-    });
-
     if real_escrow_tokens >= grad_threshold {
         ctx.accounts.xyber_token.is_graduated = true;
         emit!(GraduationTriggered {
@@ -293,6 +283,15 @@ pub fn buy_exact_output_instruction(
         signer_seeds,
     );
     token::transfer(transfer_tokens_ctx, tokens_out_scaled)?;
+
+    emit!(XyberSwapEvent {
+        ix_type: XyberInstructionType::BuyExactOut,
+        token_seed: ctx.accounts.token_seed.key(),
+        user: ctx.accounts.buyer.key(),
+        base_amount: payment_required,
+        token_amount: tokens_out,
+        vault_token_amount: escrow_balance,
+    });
 
     Ok(())
 }

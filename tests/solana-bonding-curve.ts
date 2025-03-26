@@ -23,21 +23,21 @@ const DECIMALS = 9;
 const LAMPORTS_PER_TOKEN = 10 ** DECIMALS;
 
 // Adoptation (Xyber)
-// const scaleFactor = new BN("300");
-// const BONDING_K_VIRTUAL = new BN("32190005730")
-//   .mul(scaleFactor)
-//   .mul(new BN(LAMPORTS_PER_TOKEN));
+const scaleFactor = new BN("300");
+const BONDING_K_VIRTUAL = new BN("32190005730")
+  .mul(scaleFactor)
+  .mul(new BN(LAMPORTS_PER_TOKEN));
 
-// const VIRTUAL_POOL_OFFSET = new BN(30)
-//   .mul(scaleFactor)
-//   .mul(new BN(LAMPORTS_PER_TOKEN));
+const VIRTUAL_POOL_OFFSET = new BN(30)
+  .mul(scaleFactor)
+  .mul(new BN(LAMPORTS_PER_TOKEN));
 
-// const GRADUATE_THRESHOLD = new BN("2000000");
+const GRADUATE_THRESHOLD = new BN("2000000");
 
 // Original (SOL)
-const BONDING_K_VIRTUAL = new BN("32190005730").mul(new BN(LAMPORTS_PER_TOKEN));
-const VIRTUAL_POOL_OFFSET = new BN(30 * LAMPORTS_PER_TOKEN);
-const GRADUATE_THRESHOLD = new BN("428");
+// const BONDING_K_VIRTUAL = new BN("32190005730").mul(new BN(LAMPORTS_PER_TOKEN));
+// const VIRTUAL_POOL_OFFSET = new BN(30 * LAMPORTS_PER_TOKEN);
+// const GRADUATE_THRESHOLD = new BN("428");
 
 // Metadata parameters for the project toke
 const now = new Date();

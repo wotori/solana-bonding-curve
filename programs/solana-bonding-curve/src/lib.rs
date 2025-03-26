@@ -12,7 +12,8 @@ use curves::SmoothBondingCurve;
 use instructions::*;
 
 // current development id is BdHFqKoxuP3nFChJU7uLx39CJMF88SxH5ZkX4oZ5YqcD
-declare_id!("BdHFqKoxuP3nFChJU7uLx39CJMF88SxH5ZkX4oZ5YqcD");
+// new EHvS7Ts5k8Dvd8kXAyYYq2CmFVrLFyesTzuRC6D5KcTg
+declare_id!("EHvS7Ts5k8Dvd8kXAyYYq2CmFVrLFyesTzuRC6D5KcTg");
 
 /// The sixbte, global state for all tokens.
 #[account]

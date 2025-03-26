@@ -18,3 +18,6 @@ setup:
 
 build:
 	anchor run build
+
+air:
+	solana airdrop 5 -u devnet
