@@ -6,6 +6,8 @@ use anchor_spl::token::{self, Mint, Token, TokenAccount, Transfer};
 use crate::curves::BondingCurveTrait;
 use crate::errors::CustomError;
 use crate::events::GraduationTriggered;
+use crate::events::XyberInstructionType;
+use crate::events::XyberSwapEvent;
 use crate::XyberCore;
 use crate::XyberToken;
 
@@ -143,6 +145,15 @@ pub fn buy_exact_input_instruction(
         ctx.accounts.xyber_token.total_chains,
     )?;
 
+    emit!(XyberSwapEvent {
+        ix_type: XyberInstructionType::BuyExactIn,
+        token_seed: ctx.accounts.token_seed.key(),
+        user: ctx.accounts.buyer.key(),
+        base_amount: payment_amount,
+        token_amount: actual_tokens_out,
+        vault_token_amount: ctx.accounts.vault_token_account.amount,
+    });
+
     if real_escrow_tokens >= grad_threshold {
         ctx.accounts.xyber_token.is_graduated = true;
         emit!(GraduationTriggered {
@@ -239,6 +250,15 @@ pub fn buy_exact_output_instruction(
 
     let real_escrow_tokens =
         updated_escrow_balance / 10_u64.pow(ctx.accounts.payment_mint.decimals as u32);
+
+    emit!(XyberSwapEvent {
+        ix_type: XyberInstructionType::BuyExactOut,
+        token_seed: ctx.accounts.token_seed.key(),
+        user: ctx.accounts.buyer.key(),
+        base_amount: payment_required,
+        token_amount: tokens_out,
+        vault_token_amount: ctx.accounts.vault_token_account.amount,
+    });
 
     if real_escrow_tokens >= grad_threshold {
         ctx.accounts.xyber_token.is_graduated = true;

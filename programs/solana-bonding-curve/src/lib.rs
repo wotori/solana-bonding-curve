@@ -11,8 +11,8 @@ use crate::xyber_params::{InitCoreParams, TokenParams};
 use curves::SmoothBondingCurve;
 use instructions::*;
 
-// current dev server - Ht1kvf1fWgLgoEs8f5npkqpDFn7Hq5EKFNpVqUwWK6mX
-declare_id!("Ht1kvf1fWgLgoEs8f5npkqpDFn7Hq5EKFNpVqUwWK6mX");
+// current development id is BdHFqKoxuP3nFChJU7uLx39CJMF88SxH5ZkX4oZ5YqcD
+declare_id!("BdHFqKoxuP3nFChJU7uLx39CJMF88SxH5ZkX4oZ5YqcD");
 
 /// The sixbte, global state for all tokens.
 #[account]

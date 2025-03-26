@@ -5,6 +5,8 @@ use anchor_spl::token::{self, Mint, Token, TokenAccount, Transfer};
 
 use crate::curves::BondingCurveTrait;
 use crate::errors::CustomError;
+use crate::events::XyberInstructionType;
+use crate::events::XyberSwapEvent;
 use crate::XyberCore;
 use crate::XyberToken;
 
@@ -30,7 +32,6 @@ pub struct SellToken<'info> {
         bump
     )]
     pub xyber_token: Account<'info, XyberToken>,
-    
 
     /// The escrow SPL token account that holds the *payment* tokens (e.g. USDC).
     #[account(
@@ -154,6 +155,15 @@ pub fn sell_exact_input_instruction(
     );
     token::transfer(escrow_to_user_ctx, base_token_amount)?;
 
+    emit!(XyberSwapEvent {
+        ix_type: XyberInstructionType::SellExactIn,
+        token_seed: ctx.accounts.token_seed.key(),
+        user: ctx.accounts.user.key(),
+        base_amount: base_token_amount,
+        token_amount: tokens_to_transfer,
+        vault_token_amount: ctx.accounts.vault_token_account.amount,
+    });
+
     Ok(())
 }
 
@@ -233,6 +243,15 @@ pub fn sell_exact_output_instruction(
         signer_seeds,
     );
     token::transfer(escrow_to_user_ctx, base_tokens_requested)?;
+
+    emit!(XyberSwapEvent {
+        ix_type: XyberInstructionType::SellExactOut,
+        token_seed: ctx.accounts.token_seed.key(),
+        user: ctx.accounts.user.key(),
+        base_amount: base_tokens_requested,
+        token_amount: user_tokens_required,
+        vault_token_amount: ctx.accounts.vault_token_account.amount,
+    });
 
     Ok(())
 }

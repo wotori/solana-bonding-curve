@@ -356,6 +356,7 @@ mod tests {
         let (minted_tokens, new_x) = curve.buy_exact_input(x, base_in).unwrap();
         x = new_x;
         assert!(minted_tokens > 0, "Initial token minting failed");
+        println!("minted_tokens: {}", minted_tokens);
 
         // Let's request exactly half of the current base_in pool
         let base_out = x / 2;

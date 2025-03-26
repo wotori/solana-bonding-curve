@@ -758,6 +758,26 @@ export type BondingCurve = {
           }
         ]
       }
+    },
+    {
+      "name": "XyberInstructionType",
+      "type": {
+        "kind": "enum",
+        "variants": [
+          {
+            "name": "BuyExactIn"
+          },
+          {
+            "name": "BuyExactOut"
+          },
+          {
+            "name": "SellExactIn"
+          },
+          {
+            "name": "SellExactOut"
+          }
+        ]
+      }
     }
   ],
   "events": [
@@ -787,6 +807,43 @@ export type BondingCurve = {
         {
           "name": "escrow",
           "type": "publicKey",
+          "index": false
+        }
+      ]
+    },
+    {
+      "name": "XyberSwapEvent",
+      "fields": [
+        {
+          "name": "ixType",
+          "type": {
+            "defined": "XyberInstructionType"
+          },
+          "index": false
+        },
+        {
+          "name": "tokenSeed",
+          "type": "publicKey",
+          "index": false
+        },
+        {
+          "name": "user",
+          "type": "publicKey",
+          "index": false
+        },
+        {
+          "name": "baseAmount",
+          "type": "u64",
+          "index": false
+        },
+        {
+          "name": "tokenAmount",
+          "type": "u64",
+          "index": false
+        },
+        {
+          "name": "vaultTokenAmount",
+          "type": "u64",
           "index": false
         }
       ]
@@ -1606,6 +1663,26 @@ export const IDL: BondingCurve = {
           }
         ]
       }
+    },
+    {
+      "name": "XyberInstructionType",
+      "type": {
+        "kind": "enum",
+        "variants": [
+          {
+            "name": "BuyExactIn"
+          },
+          {
+            "name": "BuyExactOut"
+          },
+          {
+            "name": "SellExactIn"
+          },
+          {
+            "name": "SellExactOut"
+          }
+        ]
+      }
     }
   ],
   "events": [
@@ -1635,6 +1712,43 @@ export const IDL: BondingCurve = {
         {
           "name": "escrow",
           "type": "publicKey",
+          "index": false
+        }
+      ]
+    },
+    {
+      "name": "XyberSwapEvent",
+      "fields": [
+        {
+          "name": "ixType",
+          "type": {
+            "defined": "XyberInstructionType"
+          },
+          "index": false
+        },
+        {
+          "name": "tokenSeed",
+          "type": "publicKey",
+          "index": false
+        },
+        {
+          "name": "user",
+          "type": "publicKey",
+          "index": false
+        },
+        {
+          "name": "baseAmount",
+          "type": "u64",
+          "index": false
+        },
+        {
+          "name": "tokenAmount",
+          "type": "u64",
+          "index": false
+        },
+        {
+          "name": "vaultTokenAmount",
+          "type": "u64",
           "index": false
         }
       ]
