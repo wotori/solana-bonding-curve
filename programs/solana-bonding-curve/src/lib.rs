@@ -11,8 +11,6 @@ use crate::xyber_params::{InitCoreParams, TokenParams};
 use curves::SmoothBondingCurve;
 use instructions::*;
 
-// current development id is BdHFqKoxuP3nFChJU7uLx39CJMF88SxH5ZkX4oZ5YqcD
-// new EHvS7Ts5k8Dvd8kXAyYYq2CmFVrLFyesTzuRC6D5KcTg
 declare_id!("EHvS7Ts5k8Dvd8kXAyYYq2CmFVrLFyesTzuRC6D5KcTg");
 
 /// The sixbte, global state for all tokens.
@@ -35,11 +33,11 @@ impl XyberCore {
     pub const LEN: usize = 8  // Anchor discriminator (1 + X -> 1 stand for optional fields)
         + (1 + 32) // admin (Pubkey)
         + (1 + 8)  // grad_threshold (u16)
-        // SmoothBondingCurve has 4 fields:
+        // SmoothBondingCurve has 3 fields:
         // a_total_tokens: u64 -> 8 bytes
         // k_virtual_pool_offset: u128 -> 16 bytes
-        // c_bonding_scale_factor: u64 -> 8 bytes
-        // In total: 8 + 16 + 8 + 8 = 32
+        // c_bonding_scale_factor: u128 -> 16 bytes
+        // In total: 8 + 16 + 16 = 40
         + (1 + 40)  // bonding_curve
         + (1 + 32); // accepted_base_mint (Pubkey)
 }

@@ -17,26 +17,22 @@ import { BondingCurve } from "../target/types/bonding_curve";
 import { BUYER_KEYPAIR_PATH, CREATOR_KEYPAIR_PATH, DEVNET_URL, METAPLEX_PROGRAM_ID, PAYMENT_MINT_PUBKEY, TOKEN_FACTORY_PROGRAM_ID } from "./constants";
 
 
-// Test constants
-const TOTAL_TOKENS = new BN("1073000191");
+const A_TOTAL_TOKENS = new BN("975000000000");
 const DECIMALS = 9;
 const LAMPORTS_PER_TOKEN = 10 ** DECIMALS;
 
 // Adoptation (Xyber)
-const scaleFactor = new BN("300");
-const BONDING_K_VIRTUAL = new BN("32190005730")
-  .mul(scaleFactor)
+const K_VIRTUAL_POOL_OFFSET = new BN("904507500000000")
   .mul(new BN(LAMPORTS_PER_TOKEN));
 
-const VIRTUAL_POOL_OFFSET = new BN(30)
-  .mul(scaleFactor)
+const C_BONDING_K_VIRTUAL = new BN("927000")
   .mul(new BN(LAMPORTS_PER_TOKEN));
 
 const GRADUATE_THRESHOLD = new BN("2000000");
 
 // Original (SOL)
-// const BONDING_K_VIRTUAL = new BN("32190005730").mul(new BN(LAMPORTS_PER_TOKEN));
-// const VIRTUAL_POOL_OFFSET = new BN(30 * LAMPORTS_PER_TOKEN);
+// const K_VIRTUAL_POOL_OFFSET = new BN("32190005730").mul(new BN(LAMPORTS_PER_TOKEN));
+// const C_BONDING_K_VIRTUAL = new BN(30 * LAMPORTS_PER_TOKEN);
 // const GRADUATE_THRESHOLD = new BN("428");
 
 // Metadata parameters for the project toke
@@ -141,16 +137,16 @@ describe("Bonding Curve Program (Token Init + Buyer/Seller Flow)", () => {
   // ------------------------------------------------------------------
   // 3) Tests
   // ------------------------------------------------------------------
-  it("1.2) update_core_instruction with random gradThreshold & small graduateDollars offset", async () => {
+  it.only("1.2) update_core_instruction with random gradThreshold & small graduateDollars offset", async () => {
     console.log("----- Step 2: update_core_instruction -----");
 
-    // await program.methods.closeXyberCoreInstruction() // uncomment to recreate the core if needed
-    //   .accounts({
-    //     xyberCore: xyberCorePda,
-    //     admin: creatorKeypair.publicKey,
-    //   })
-    //   .signers([creatorKeypair])
-    //   .rpc();
+    await program.methods.closeXyberCoreInstruction() // uncomment to recreate the core if needed
+      .accounts({
+        xyberCore: xyberCorePda,
+        admin: creatorKeypair.publicKey,
+      })
+      .signers([creatorKeypair])
+      .rpc();
 
     // Add a small random offset (1..3) to GRADUATE_DOLLARS_AMOUNT
 
@@ -159,9 +155,9 @@ describe("Bonding Curve Program (Token Init + Buyer/Seller Flow)", () => {
       admin: creatorKeypair.publicKey,
       gradThreshold: GRADUATE_THRESHOLD,
       bondingCurve: {
-        aTotalTokens: TOTAL_TOKENS,
-        kVirtualPoolOffset: BONDING_K_VIRTUAL,
-        cBondingScaleFactor: VIRTUAL_POOL_OFFSET,
+        aTotalTokens: A_TOTAL_TOKENS,
+        kVirtualPoolOffset: K_VIRTUAL_POOL_OFFSET,
+        cBondingScaleFactor: C_BONDING_K_VIRTUAL,
       },
       acceptedBaseMint: PAYMENT_MINT_PUBKEY,
     };
@@ -533,7 +529,7 @@ describe("Bonding Curve Program (Token Init + Buyer/Seller Flow)", () => {
     console.log("Buyer project-token balance (human-readable) =", buyerBalanceHuman);
   });
 
-  it("1.9) Dump Info for Frontend", async () => {
+  it.only("1.9) Dump Info for Frontend", async () => {
     console.log("----- Dumping Key Info for Frontend -----");
 
     // 0) The token seed public key (the most critical piece for front-end calls)
