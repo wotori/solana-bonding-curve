@@ -11,7 +11,7 @@ use crate::xyber_params::{InitCoreParams, TokenParams};
 use curves::SmoothBondingCurve;
 use instructions::*;
 
-declare_id!("EHvS7Ts5k8Dvd8kXAyYYq2CmFVrLFyesTzuRC6D5KcTg");
+declare_id!("GyiJuZJdiA3hF9CLEvm2yfY2P2FRehbcwRyMtz2itZ85");
 
 /// The sixbte, global state for all tokens.
 #[account]
@@ -98,13 +98,13 @@ pub mod bonding_curve {
         instructions::buy_exact_input_instruction(ctx, base_in, min_amount_out)
     }
 
-    pub fn buy_exact_output_instruction(
-        ctx: Context<BuyToken>,
-        tokens_out: u64,
-        max_payment_amount: u64,
-    ) -> Result<()> {
-        instructions::buy_exact_output_instruction(ctx, tokens_out, max_payment_amount)
-    }
+    // pub fn buy_exact_output_instruction(
+    //     ctx: Context<BuyToken>,
+    //     tokens_out: u64,
+    //     max_payment_amount: u64,
+    // ) -> Result<()> {
+    //     instructions::buy_exact_output_instruction(ctx, tokens_out, max_payment_amount)
+    // }
 
     pub fn sell_exact_input_instruction(
         ctx: Context<SellToken>,
@@ -118,13 +118,13 @@ pub mod bonding_curve {
         )
     }
 
-    pub fn sell_exact_output_instruction(
-        ctx: Context<SellToken>,
-        lamports: u64,
-        max_tokens_in: u64,
-    ) -> Result<()> {
-        instructions::sell_exact_output_instruction(ctx, lamports, max_tokens_in)
-    }
+    // pub fn sell_exact_output_instruction(
+    //     ctx: Context<SellToken>,
+    //     lamports: u64,
+    //     max_tokens_in: u64,
+    // ) -> Result<()> {
+    //     instructions::sell_exact_output_instruction(ctx, lamports, max_tokens_in)
+    // }
 
     pub fn withdraw_liquidity(ctx: Context<WithdrawLiquidity>) -> Result<()> {
         instructions::withdraw_liquidity(ctx)

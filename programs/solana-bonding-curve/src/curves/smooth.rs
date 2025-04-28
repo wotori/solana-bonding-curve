@@ -23,7 +23,7 @@ pub trait BondingCurveTrait {
 
     /// Buys an exact number of tokens out (tokens_out), returning the exact base_tokens required,
     /// plus the new x in the pool.
-    fn buy_exact_output(
+    fn _buy_exact_output(
         &self,
         old_x: u64,
         tokens_out: u64,
@@ -40,7 +40,7 @@ pub trait BondingCurveTrait {
     /// Sells enough tokens to receive exactly `base_out` from the curve.
     /// Returns the number of "pool tokens" that must be burned,
     /// plus the new x in the pool.
-    fn sell_exact_output(
+    fn _sell_exact_output(
         &self,
         old_x: u64,
         base_out: u64,
@@ -136,7 +136,7 @@ impl BondingCurveTrait for SmoothBondingCurve {
 
     /// Buys an exact number of tokens out (tokens_out), returning the exact base_tokens required,
     /// plus the updated x.
-    fn buy_exact_output(
+    fn _buy_exact_output(
         &self,
         old_x: u64,
         tokens_out: u64,
@@ -188,7 +188,7 @@ impl BondingCurveTrait for SmoothBondingCurve {
     /// Sells enough tokens to receive exactly `base_out` from the curve.
     /// Returns the number of "pool tokens" that must be burned,
     /// plus the updated x.
-    fn sell_exact_output(
+    fn _sell_exact_output(
         &self,
         old_x: u64,
         base_out: u64,
@@ -265,7 +265,7 @@ mod tests {
         let old_x = 0;
         let tokens_out = 10_000 as u64;
 
-        let (lamports_required, new_x) = curve.buy_exact_output(old_x, tokens_out).unwrap();
+        let (lamports_required, new_x) = curve._buy_exact_output(old_x, tokens_out).unwrap();
         println!("Tokens to buy: {}", tokens_out);
         println!("Lamports required: {}", lamports_required);
         println!("New x (pool deposit) after buy: {}", new_x);
@@ -350,7 +350,7 @@ mod tests {
     }
 
     #[test]
-    fn test_sell_exact_output() {
+    fn test__sell_exact_output() {
         let curve = default_curve();
         let mut x = 0;
 
@@ -364,7 +364,7 @@ mod tests {
         // Let's request exactly half of the current base_in pool
         let base_out = x / 2;
 
-        let (tokens_burned, after_x) = curve.sell_exact_output(x, base_out).unwrap();
+        let (tokens_burned, after_x) = curve._sell_exact_output(x, base_out).unwrap();
         println!("tokens_burned: {}", tokens_burned);
         println!("new pool x after sell: {}", after_x);
 
@@ -422,7 +422,7 @@ mod tests {
         // We'll reset the pool to empty
         let mut x2 = 0;
         let tokens_out_b = 50_000;
-        let (lamports_in_b, x2_after_buy) = curve.buy_exact_output(x2, tokens_out_b).unwrap();
+        let (lamports_in_b, x2_after_buy) = curve._buy_exact_output(x2, tokens_out_b).unwrap();
         x2 = x2_after_buy;
         println!(
             "(B) Bought {} tokens (exact output) for {} base_tokens, new x={}",

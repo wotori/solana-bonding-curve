@@ -189,112 +189,112 @@ pub fn buy_exact_input_instruction(
     Ok(())
 }
 
-pub fn buy_exact_output_instruction(
-    ctx: Context<BuyToken>,
-    tokens_out: u64,
-    max_payment_amount: u64,
-) -> Result<()> {
-    // 0) Reject if graduated.
-    require!(
-        !ctx.accounts.xyber_token.is_graduated,
-        CustomError::TokenIsGraduated
-    );
+// pub fn _buy_exact_output_instruction(
+//     ctx: Context<BuyToken>,
+//     tokens_out: u64,
+//     max_payment_amount: u64,
+// ) -> Result<()> {
+//     // 0) Reject if graduated.
+//     require!(
+//         !ctx.accounts.xyber_token.is_graduated,
+//         CustomError::TokenIsGraduated
+//     );
 
-    require_keys_eq!(
-        ctx.accounts.payment_mint.key(),
-        ctx.accounts.xyber_core.accepted_base_mint,
-        CustomError::WrongPaymentMint
-    );
+//     require_keys_eq!(
+//         ctx.accounts.payment_mint.key(),
+//         ctx.accounts.xyber_core.accepted_base_mint,
+//         CustomError::WrongPaymentMint
+//     );
 
-    let escrow_balance = ctx.accounts.escrow_token_account.amount;
-    // 1) Calculate how many payment tokens are needed for `tokens_out`.
-    let (payment_required, _new_x) = ctx
-        .accounts
-        .xyber_core
-        .bonding_curve
-        .buy_exact_output(escrow_balance, tokens_out)?;
+//     let escrow_balance = ctx.accounts.escrow_token_account.amount;
+//     // 1) Calculate how many payment tokens are needed for `tokens_out`.
+//     let (payment_required, _new_x) = ctx
+//         .accounts
+//         .xyber_core
+//         .bonding_curve
+//         ._buy_exact_output(escrow_balance, tokens_out)?;
 
-    // 2) Enforce `payment_required <= max_payment_amount`.
-    require!(
-        payment_required <= max_payment_amount,
-        CustomError::SlippageExceeded
-    );
+//     // 2) Enforce `payment_required <= max_payment_amount`.
+//     require!(
+//         payment_required <= max_payment_amount,
+//         CustomError::SlippageExceeded
+//     );
 
-    // 3) Check vault balance.
-    require!(
-        (tokens_out as u128) <= ctx.accounts.vault_token_account.amount as u128,
-        CustomError::InsufficientTokenVaultBalance
-    );
+//     // 3) Check vault balance.
+//     require!(
+//         (tokens_out as u128) <= ctx.accounts.vault_token_account.amount as u128,
+//         CustomError::InsufficientTokenVaultBalance
+//     );
 
-    // 4) Transfer payment from buyer -> escrow.
-    let transfer_payment_ctx = CpiContext::new(
-        ctx.accounts.token_program.to_account_info(),
-        Transfer {
-            from: ctx.accounts.buyer_payment_account.to_account_info(),
-            to: ctx.accounts.escrow_token_account.to_account_info(),
-            authority: ctx.accounts.buyer.to_account_info(),
-        },
-    );
+//     // 4) Transfer payment from buyer -> escrow.
+//     let transfer_payment_ctx = CpiContext::new(
+//         ctx.accounts.token_program.to_account_info(),
+//         Transfer {
+//             from: ctx.accounts.buyer_payment_account.to_account_info(),
+//             to: ctx.accounts.escrow_token_account.to_account_info(),
+//             authority: ctx.accounts.buyer.to_account_info(),
+//         },
+//     );
 
-    let old_escrow_balance = ctx.accounts.escrow_token_account.amount;
-    token::transfer(transfer_payment_ctx, payment_required)?;
-    let updated_escrow_balance = old_escrow_balance
-        .checked_add(payment_required)
-        .ok_or(CustomError::MathOverflow)?;
+//     let old_escrow_balance = ctx.accounts.escrow_token_account.amount;
+//     token::transfer(transfer_payment_ctx, payment_required)?;
+//     let updated_escrow_balance = old_escrow_balance
+//         .checked_add(payment_required)
+//         .ok_or(CustomError::MathOverflow)?;
 
-    let grad_threshold = effective_threshold_for_chains(
-        ctx.accounts.xyber_core.grad_threshold,
-        ctx.accounts.xyber_token.total_chains,
-    )?;
+//     let grad_threshold = effective_threshold_for_chains(
+//         ctx.accounts.xyber_core.grad_threshold,
+//         ctx.accounts.xyber_token.total_chains,
+//     )?;
 
-    let real_escrow_tokens =
-        updated_escrow_balance / 10_u64.pow(ctx.accounts.payment_mint.decimals as u32);
+//     let real_escrow_tokens =
+//         updated_escrow_balance / 10_u64.pow(ctx.accounts.payment_mint.decimals as u32);
 
-    if real_escrow_tokens >= grad_threshold {
-        ctx.accounts.xyber_token.is_graduated = true;
-        emit!(GraduationTriggered {
-            buyer: ctx.accounts.buyer.key(),
-            escrow_balance: ctx.accounts.escrow_token_account.amount,
-            vault: ctx.accounts.vault_token_account.key(),
-            creator: ctx.accounts.xyber_token.creator.key(),
-            escrow: ctx.accounts.escrow_token_account.key(),
-        });
-    }
+//     if real_escrow_tokens >= grad_threshold {
+//         ctx.accounts.xyber_token.is_graduated = true;
+//         emit!(GraduationTriggered {
+//             buyer: ctx.accounts.buyer.key(),
+//             escrow_balance: ctx.accounts.escrow_token_account.amount,
+//             vault: ctx.accounts.vault_token_account.key(),
+//             creator: ctx.accounts.xyber_token.creator.key(),
+//             escrow: ctx.accounts.escrow_token_account.key(),
+//         });
+//     }
 
-    // 6) Transfer tokens_out (scaled) from vault -> buyer.
-    let decimals = ctx.accounts.mint.decimals as u32;
-    let tokens_out_scaled = tokens_out
-        .checked_mul(10_u64.pow(decimals))
-        .ok_or(CustomError::MathOverflow)?;
+//     // 6) Transfer tokens_out (scaled) from vault -> buyer.
+//     let decimals = ctx.accounts.mint.decimals as u32;
+//     let tokens_out_scaled = tokens_out
+//         .checked_mul(10_u64.pow(decimals))
+//         .ok_or(CustomError::MathOverflow)?;
 
-    let token_seed_key = ctx.accounts.token_seed.key();
-    let xyber_token_bump = ctx.bumps.xyber_token;
+//     let token_seed_key = ctx.accounts.token_seed.key();
+//     let xyber_token_bump = ctx.bumps.xyber_token;
 
-    let seeds: [&[u8]; 3] = [b"xyber_token", token_seed_key.as_ref(), &[xyber_token_bump]];
-    let signer_seeds = &[&seeds[..]];
+//     let seeds: [&[u8]; 3] = [b"xyber_token", token_seed_key.as_ref(), &[xyber_token_bump]];
+//     let signer_seeds = &[&seeds[..]];
 
-    let transfer_tokens_ctx = CpiContext::new_with_signer(
-        ctx.accounts.token_program.to_account_info(),
-        Transfer {
-            from: ctx.accounts.vault_token_account.to_account_info(),
-            to: ctx.accounts.buyer_token_account.to_account_info(),
-            authority: ctx.accounts.xyber_token.to_account_info(),
-        },
-        signer_seeds,
-    );
-    token::transfer(transfer_tokens_ctx, tokens_out_scaled)?;
+//     let transfer_tokens_ctx = CpiContext::new_with_signer(
+//         ctx.accounts.token_program.to_account_info(),
+//         Transfer {
+//             from: ctx.accounts.vault_token_account.to_account_info(),
+//             to: ctx.accounts.buyer_token_account.to_account_info(),
+//             authority: ctx.accounts.xyber_token.to_account_info(),
+//         },
+//         signer_seeds,
+//     );
+//     token::transfer(transfer_tokens_ctx, tokens_out_scaled)?;
 
-    emit!(XyberSwapEvent {
-        ix_type: XyberInstructionType::BuyExactOut,
-        token_seed: ctx.accounts.token_seed.key(),
-        user: ctx.accounts.buyer.key(),
-        base_amount: payment_required,
-        token_amount: tokens_out,
-        vault_token_amount: escrow_balance,
-    });
+//     emit!(XyberSwapEvent {
+//         ix_type: XyberInstructionType::BuyExactOut,
+//         token_seed: ctx.accounts.token_seed.key(),
+//         user: ctx.accounts.buyer.key(),
+//         base_amount: payment_required,
+//         token_amount: tokens_out,
+//         vault_token_amount: escrow_balance,
+//     });
 
-    Ok(())
-}
+//     Ok(())
+// }
 
 pub fn effective_threshold_for_chains(
     base_threshold: u64,

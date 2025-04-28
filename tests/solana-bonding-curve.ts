@@ -17,23 +17,24 @@ import { BondingCurve } from "../target/types/bonding_curve";
 import { BUYER_KEYPAIR_PATH, CREATOR_KEYPAIR_PATH, DEVNET_URL, METAPLEX_PROGRAM_ID, PAYMENT_MINT_PUBKEY, TOKEN_FACTORY_PROGRAM_ID } from "./constants";
 
 
-const A_TOTAL_TOKENS = new BN("975000000000");
 const DECIMALS = 9;
 const LAMPORTS_PER_TOKEN = 10 ** DECIMALS;
 
 // Adoptation (Xyber)
-const K_VIRTUAL_POOL_OFFSET = new BN("904507500000000")
-  .mul(new BN(LAMPORTS_PER_TOKEN));
+// const A_TOTAL_TOKENS = new BN("975000000000");
+// const K_VIRTUAL_POOL_OFFSET = new BN("904507500000000")
+//   .mul(new BN(LAMPORTS_PER_TOKEN));
 
-const C_BONDING_K_VIRTUAL = new BN("927000")
-  .mul(new BN(LAMPORTS_PER_TOKEN));
+// const C_BONDING_K_VIRTUAL = new BN("927000")
+//   .mul(new BN(LAMPORTS_PER_TOKEN));
 
-const GRADUATE_THRESHOLD = new BN("2000000");
+// const GRADUATE_THRESHOLD = new BN("2000000");
 
 // Original (SOL)
-// const K_VIRTUAL_POOL_OFFSET = new BN("32190005730").mul(new BN(LAMPORTS_PER_TOKEN));
-// const C_BONDING_K_VIRTUAL = new BN(30 * LAMPORTS_PER_TOKEN);
-// const GRADUATE_THRESHOLD = new BN("428");
+const A_TOTAL_TOKENS = new BN("1073000191");
+const K_VIRTUAL_POOL_OFFSET = new BN("32190005730").mul(new BN(LAMPORTS_PER_TOKEN));
+const C_BONDING_K_VIRTUAL = new BN(30 * LAMPORTS_PER_TOKEN);
+const GRADUATE_THRESHOLD = new BN("428");
 
 // Metadata parameters for the project toke
 const now = new Date();
@@ -47,6 +48,21 @@ const tokenName = `${year}_${month}_${day}_${hours}_${minutes}`;
 const tokenSymbol = "HWD";
 const tokenUri =
   "https://ekza.io/ipfs/QmVjBTRsbAM96BnNtZKrR8i3hGRbkjnQ3kugwXn6BVFu2k";
+
+function formatBnHumanReadable(bnValue: BN | null | undefined): string {
+  if (bnValue === null || bnValue === undefined) {
+    return "N/A";
+  }
+  const decimalString = bnValue.toString(10);
+  try {
+    return BigInt(decimalString).toLocaleString('en-US');
+  } catch (error) {
+    console.warn(
+      `Could not format BN ${decimalString} using BigInt. Returning raw string. Error: ${error}`
+    );
+    return decimalString;
+  }
+}
 
 describe("Bonding Curve Program (Token Init + Buyer/Seller Flow)", () => {
   // 1) Setup & Keypairs
@@ -137,16 +153,16 @@ describe("Bonding Curve Program (Token Init + Buyer/Seller Flow)", () => {
   // ------------------------------------------------------------------
   // 3) Tests
   // ------------------------------------------------------------------
-  it.only("1.2) update_core_instruction with random gradThreshold & small graduateDollars offset", async () => {
+  it("1.2) update_core_instruction with random gradThreshold & small graduateDollars offset", async () => {
     console.log("----- Step 2: update_core_instruction -----");
 
-    await program.methods.closeXyberCoreInstruction() // uncomment to recreate the core if needed
-      .accounts({
-        xyberCore: xyberCorePda,
-        admin: creatorKeypair.publicKey,
-      })
-      .signers([creatorKeypair])
-      .rpc();
+    // await program.methods.closeXyberCoreInstruction() // uncomment to recreate the core if needed
+    //   .accounts({
+    //     xyberCore: xyberCorePda,
+    //     admin: creatorKeypair.publicKey,
+    //   })
+    //   .signers([creatorKeypair])
+    //   .rpc();
 
     // Add a small random offset (1..3) to GRADUATE_DOLLARS_AMOUNT
 
@@ -194,6 +210,35 @@ describe("Bonding Curve Program (Token Init + Buyer/Seller Flow)", () => {
     // Fetch the updated state
     const xyberState = await program.account.xyberCore.fetch(xyberCorePda);
     console.log("After update_core, XYBER state:", xyberState);
+    if (xyberState) {
+      // Create the human-readable object using optional chaining for safety
+      const readableState = {
+        admin: xyberState.admin?.toString() ?? "N/A",
+        gradThreshold: formatBnHumanReadable(xyberState.gradThreshold),
+        bondingCurve: {
+          aTotalTokens: formatBnHumanReadable(xyberState.bondingCurve?.aTotalTokens),
+          kVirtualPoolOffset: formatBnHumanReadable(xyberState.bondingCurve?.kVirtualPoolOffset),
+          cBondingScaleFactor: formatBnHumanReadable(xyberState.bondingCurve?.cBondingScaleFactor),
+        },
+        acceptedBaseMint: xyberState.acceptedBaseMint?.toString() ?? "N/A",
+      };
+
+      // Print the human-readable state clearly
+      console.log("--- Human-Readable XYBER State (After update_core) ---");
+      console.log(`Admin: ${readableState.admin}`);
+      console.log(`Grad Threshold: ${readableState.gradThreshold}`);
+      console.log("Bonding Curve:");
+      console.log(`  Total Tokens (raw): ${readableState.bondingCurve.aTotalTokens}`);
+      console.log(`     (Note: Raw integer. Divide by 10^decimals for display value)`);
+      console.log(`  Virtual Pool Offset: ${readableState.bondingCurve.kVirtualPoolOffset}`);
+      console.log(`  Scale Factor: ${readableState.bondingCurve.cBondingScaleFactor}`);
+      console.log(`Accepted Base Mint: ${readableState.acceptedBaseMint}`);
+      // Print any other formatted fields...
+      console.log("----------------------------------------------------");
+
+    } else {
+      console.log("After update_core, XYBER state was fetched but is null or undefined.");
+    }
   });
 
   // 3.2) init_and_mint_full_supply_instruction
@@ -359,117 +404,117 @@ describe("Bonding Curve Program (Token Init + Buyer/Seller Flow)", () => {
     );
   });
 
-  // 3.5) Buyer buys EXACT output
-  it("1.6) Buyer buys EXACT output: e.g. 10 project tokens (buy_exact_output_instruction)", async () => {
-    const buyerTokenAccount = await getAssociatedTokenAddress(
-      mintPda,
-      buyerKeypair.publicKey
-    );
-    const buyerPaymentAccount = await getAssociatedTokenAddress(
-      PAYMENT_MINT_PUBKEY,
-      buyerKeypair.publicKey
-    );
+  // // 3.5) Buyer buys EXACT output
+  // it("1.6) Buyer buys EXACT output: e.g. 10 project tokens (buy_exact_output_instruction)", async () => {
+  //   const buyerTokenAccount = await getAssociatedTokenAddress(
+  //     mintPda,
+  //     buyerKeypair.publicKey
+  //   );
+  //   const buyerPaymentAccount = await getAssociatedTokenAddress(
+  //     PAYMENT_MINT_PUBKEY,
+  //     buyerKeypair.publicKey
+  //   );
 
-    // 1) Suppose buyer wants exactly 10 unscaled tokens
-    const xyberTokensOutWanted = new BN(10);
-    const baseTokensPayExpected = new BN(15_000_000);
+  //   // 1) Suppose buyer wants exactly 10 unscaled tokens
+  //   const xyberTokensOutWanted = new BN(10);
+  //   const baseTokensPayExpected = new BN(15_000_000);
 
-    // 2) Check buyer's current raw balance
-    const buyerAtaInfoBefore = await getAccount(connection, buyerTokenAccount);
-    const buyerTokensBefore = buyerAtaInfoBefore.amount;
+  //   // 2) Check buyer's current raw balance
+  //   const buyerAtaInfoBefore = await getAccount(connection, buyerTokenAccount);
+  //   const buyerTokensBefore = buyerAtaInfoBefore.amount;
 
-    // 3) Buy instruction
-    await program.methods
-      .buyExactOutputInstruction(xyberTokensOutWanted, baseTokensPayExpected)
-      .accounts({
-        xyberCore: xyberCorePda,
-        tokenSeed: tokenSeedKeypair.publicKey,
-        buyer: buyerKeypair.publicKey,
-        xyberToken: xyberTokenPda,
-        escrowTokenAccount: escrowTokenAccount,
-        paymentMint: PAYMENT_MINT_PUBKEY,
-        mint: mintPda,
-        vaultTokenAccount: vaultTokenAccount,
-        buyerTokenAccount: buyerTokenAccount,
-        buyerPaymentAccount: buyerPaymentAccount,
-        associatedTokenProgram: ASSOCIATED_TOKEN_PROGRAM_ID,
-        tokenProgram: TOKEN_PROGRAM_ID,
-        systemProgram: SystemProgram.programId,
-      })
-      .signers([buyerKeypair])
-      .rpc();
+  //   // 3) Buy instruction
+  //   await program.methods
+  //     .buyExactOutputInstruction(xyberTokensOutWanted, baseTokensPayExpected)
+  //     .accounts({
+  //       xyberCore: xyberCorePda,
+  //       tokenSeed: tokenSeedKeypair.publicKey,
+  //       buyer: buyerKeypair.publicKey,
+  //       xyberToken: xyberTokenPda,
+  //       escrowTokenAccount: escrowTokenAccount,
+  //       paymentMint: PAYMENT_MINT_PUBKEY,
+  //       mint: mintPda,
+  //       vaultTokenAccount: vaultTokenAccount,
+  //       buyerTokenAccount: buyerTokenAccount,
+  //       buyerPaymentAccount: buyerPaymentAccount,
+  //       associatedTokenProgram: ASSOCIATED_TOKEN_PROGRAM_ID,
+  //       tokenProgram: TOKEN_PROGRAM_ID,
+  //       systemProgram: SystemProgram.programId,
+  //     })
+  //     .signers([buyerKeypair])
+  //     .rpc();
 
-    // 4) Check the difference in buyer’s raw balance
-    const buyerAtaInfoAfter = await getAccount(connection, buyerTokenAccount);
-    const diff = buyerAtaInfoAfter.amount - buyerTokensBefore;
+  //   // 4) Check the difference in buyer’s raw balance
+  //   const buyerAtaInfoAfter = await getAccount(connection, buyerTokenAccount);
+  //   const diff = buyerAtaInfoAfter.amount - buyerTokensBefore;
 
-    // Because on-chain code multiplies by 10^decimals
-    // we expect minted = 10 * 10^decimals
-    const expectedRawMinted = xyberTokensOutWanted.mul(new BN(10 ** DECIMALS));
-    assert(
-      diff === BigInt(expectedRawMinted.toString()),
-      `Expected minted=${expectedRawMinted}, but got diff=${diff}`
-    );
-    console.log(
-      "BuyExactOutput success. Minted raw =",
-      diff.toString(),
-      " (Wanted 10 unscaled tokens.)"
-    );
-  });
+  //   // Because on-chain code multiplies by 10^decimals
+  //   // we expect minted = 10 * 10^decimals
+  //   const expectedRawMinted = xyberTokensOutWanted.mul(new BN(10 ** DECIMALS));
+  //   assert(
+  //     diff === BigInt(expectedRawMinted.toString()),
+  //     `Expected minted=${expectedRawMinted}, but got diff=${diff}`
+  //   );
+  //   console.log(
+  //     "BuyExactOutput success. Minted raw =",
+  //     diff.toString(),
+  //     " (Wanted 10 unscaled tokens.)"
+  //   );
+  // });
 
   // 3.6) Buyer sells EXACT output
-  it("1.7) Buyer sells EXACT output: requests lamports back (sell_exact_output_instruction)", async () => {
-    const buyerTokenAccount = await getAssociatedTokenAddress(
-      mintPda,
-      buyerKeypair.publicKey
-    );
-    const buyerPaymentAccount = await getAssociatedTokenAddress(
-      PAYMENT_MINT_PUBKEY,
-      buyerKeypair.publicKey
-    );
+  // it("1.7) Buyer sells EXACT output: requests lamports back (sell_exact_output_instruction)", async () => {
+  //   const buyerTokenAccount = await getAssociatedTokenAddress(
+  //     mintPda,
+  //     buyerKeypair.publicKey
+  //   );
+  //   const buyerPaymentAccount = await getAssociatedTokenAddress(
+  //     PAYMENT_MINT_PUBKEY,
+  //     buyerKeypair.publicKey
+  //   );
 
-    // 1) Suppose user wants lamports of base back
-    const lamportsWanted = new BN(0.01 * LAMPORTS_PER_TOKEN);
+  //   // 1) Suppose user wants lamports of base back
+  //   const lamportsWanted = new BN(0.01 * LAMPORTS_PER_TOKEN);
 
-    // 2) Check the user's current raw token balance
-    const buyerAtaInfoBefore = await getAccount(connection, buyerTokenAccount);
-    const buyerTokensBefore = buyerAtaInfoBefore.amount;
+  //   // 2) Check the user's current raw token balance
+  //   const buyerAtaInfoBefore = await getAccount(connection, buyerTokenAccount);
+  //   const buyerTokensBefore = buyerAtaInfoBefore.amount;
 
-    // 3) Sell instruction
-    await program.methods
-      .sellExactOutputInstruction(lamportsWanted, lamportsWanted)
-      .accounts({
-        xyberCore: xyberCorePda,
-        tokenSeed: tokenSeedKeypair.publicKey,
-        user: buyerKeypair.publicKey,
-        xyberToken: xyberTokenPda,
-        escrowTokenAccount: escrowTokenAccount,
-        paymentMint: PAYMENT_MINT_PUBKEY,
-        mint: mintPda,
-        vaultTokenAccount: vaultTokenAccount,
-        userTokenAccount: buyerTokenAccount,
-        userPaymentAccount: buyerPaymentAccount,
-        associatedTokenProgram: ASSOCIATED_TOKEN_PROGRAM_ID,
-        tokenProgram: TOKEN_PROGRAM_ID,
-        systemProgram: SystemProgram.programId,
-      })
-      .signers([buyerKeypair])
-      .rpc();
+  //   // 3) Sell instruction
+  //   await program.methods
+  //     .sellExactOutputInstruction(lamportsWanted, lamportsWanted)
+  //     .accounts({
+  //       xyberCore: xyberCorePda,
+  //       tokenSeed: tokenSeedKeypair.publicKey,
+  //       user: buyerKeypair.publicKey,
+  //       xyberToken: xyberTokenPda,
+  //       escrowTokenAccount: escrowTokenAccount,
+  //       paymentMint: PAYMENT_MINT_PUBKEY,
+  //       mint: mintPda,
+  //       vaultTokenAccount: vaultTokenAccount,
+  //       userTokenAccount: buyerTokenAccount,
+  //       userPaymentAccount: buyerPaymentAccount,
+  //       associatedTokenProgram: ASSOCIATED_TOKEN_PROGRAM_ID,
+  //       tokenProgram: TOKEN_PROGRAM_ID,
+  //       systemProgram: SystemProgram.programId,
+  //     })
+  //     .signers([buyerKeypair])
+  //     .rpc();
 
-    // 4) Check final balance
-    const buyerAtaInfoAfter = await getAccount(connection, buyerTokenAccount);
-    const tokensBurned = buyerTokensBefore - buyerAtaInfoAfter.amount;
+  //   // 4) Check final balance
+  //   const buyerAtaInfoAfter = await getAccount(connection, buyerTokenAccount);
+  //   const tokensBurned = buyerTokensBefore - buyerAtaInfoAfter.amount;
 
-    console.log(
-      "SellExactOutput => user burned:",
-      tokensBurned.toString(),
-      " raw tokens"
-    );
-    assert(
-      tokensBurned > BigInt(0),
-      "Expected to burn some positive number of tokens"
-    );
-  });
+  //   console.log(
+  //     "SellExactOutput => user burned:",
+  //     tokensBurned.toString(),
+  //     " raw tokens"
+  //   );
+  //   assert(
+  //     tokensBurned > BigInt(0),
+  //     "Expected to burn some positive number of tokens"
+  //   );
+  // });
 
   it("1.8) Final state check with base token escrow", async () => {
     console.log("----- Final State Check (Base Token Escrow) -----");
@@ -529,7 +574,7 @@ describe("Bonding Curve Program (Token Init + Buyer/Seller Flow)", () => {
     console.log("Buyer project-token balance (human-readable) =", buyerBalanceHuman);
   });
 
-  it.only("1.9) Dump Info for Frontend", async () => {
+  it("1.9) Dump Info for Frontend", async () => {
     console.log("----- Dumping Key Info for Frontend -----");
 
     // 0) The token seed public key (the most critical piece for front-end calls)

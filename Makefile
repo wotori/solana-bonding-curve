@@ -21,3 +21,6 @@ build:
 
 air:
 	solana airdrop 10 -u devnet
+
+ts-check-sdk:
+	npx tsc --noEmit -p ./src

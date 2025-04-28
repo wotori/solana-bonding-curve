@@ -167,9 +167,10 @@ pub fn sell_exact_input_instruction(
     Ok(())
 }
 
+/*
 /// Sells enough project tokens to obtain an *exact output* of base (payment) tokens.
 /// Enforces a “maximum” amount of user tokens that can be taken, to guard against slippage.
-pub fn sell_exact_output_instruction(
+pub fn _sell_exact_output_instruction(
     ctx: Context<SellToken>,
     base_tokens_requested: u64,
     max_tokens_in: u64, // slippage guard
@@ -192,7 +193,7 @@ pub fn sell_exact_output_instruction(
         .accounts
         .xyber_core
         .bonding_curve
-        .sell_exact_output(escrow_balance, base_tokens_requested)?;
+        ._sell_exact_output(escrow_balance, base_tokens_requested)?;
     msg!(
         "sell_exact_output user_tokens_required = {}",
         user_tokens_required
@@ -255,3 +256,5 @@ pub fn sell_exact_output_instruction(
 
     Ok(())
 }
+
+*/
