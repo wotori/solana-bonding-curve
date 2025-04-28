@@ -98,14 +98,6 @@ pub mod bonding_curve {
         instructions::buy_exact_input_instruction(ctx, base_in, min_amount_out)
     }
 
-    // pub fn buy_exact_output_instruction(
-    //     ctx: Context<BuyToken>,
-    //     tokens_out: u64,
-    //     max_payment_amount: u64,
-    // ) -> Result<()> {
-    //     instructions::buy_exact_output_instruction(ctx, tokens_out, max_payment_amount)
-    // }
-
     pub fn sell_exact_input_instruction(
         ctx: Context<SellToken>,
         normalized_token_amount: u64,
@@ -117,14 +109,6 @@ pub mod bonding_curve {
             min_base_amount_out,
         )
     }
-
-    // pub fn sell_exact_output_instruction(
-    //     ctx: Context<SellToken>,
-    //     lamports: u64,
-    //     max_tokens_in: u64,
-    // ) -> Result<()> {
-    //     instructions::sell_exact_output_instruction(ctx, lamports, max_tokens_in)
-    // }
 
     pub fn withdraw_liquidity(ctx: Context<WithdrawLiquidity>) -> Result<()> {
         instructions::withdraw_liquidity(ctx)

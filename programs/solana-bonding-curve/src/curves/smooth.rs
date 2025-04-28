@@ -224,10 +224,15 @@ mod tests {
     mod xyber_params {
         use anchor_lang::solana_program::native_token::LAMPORTS_PER_SOL;
 
-        // Example values; replace with actual parameters
-        pub const A_TOTAL_TOKENS: u64 = 975_000_000_000;
-        pub const K_VIRTUAL_POOL_OFFSET: u128 = 904_507_500_000_000 * (LAMPORTS_PER_SOL as u128);
-        pub const C_BONDING_SCALE_FACTOR: u64 = 927_000 * LAMPORTS_PER_SOL;
+        // Xyber
+        // pub const A_TOTAL_TOKENS: u64 = 975_000_000_000;
+        // pub const K_VIRTUAL_POOL_OFFSET: u128 = 904_507_500_000_000 * (LAMPORTS_PER_SOL as u128);
+        // pub const C_BONDING_SCALE_FACTOR: u64 = 927_000 * LAMPORTS_PER_SOL;
+
+        // Solana
+        pub const A_TOTAL_TOKENS: u64 = 1_073_000_191;
+        pub const K_VIRTUAL_POOL_OFFSET: u128 = 32_190_005_730 * (LAMPORTS_PER_SOL as u128);
+        pub const C_BONDING_SCALE_FACTOR: u64 = 30 * LAMPORTS_PER_SOL;
     }
 
     /// Helper function for building the default test curve.
@@ -350,7 +355,7 @@ mod tests {
     }
 
     #[test]
-    fn test__sell_exact_output() {
+    fn test_sell_exact_output() {
         let curve = default_curve();
         let mut x = 0;
 
