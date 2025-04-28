@@ -19,6 +19,9 @@ pub fn fill_core_fields(core: &mut XyberCore, params: &InitCoreParams) {
     if let Some(accepted_base_mint) = params.accepted_base_mint {
         core.accepted_base_mint = accepted_base_mint;
     }
+    if let Some(total_supply) = params.total_supply {
+        core.total_supply = total_supply;
+    }
 }
 
 #[derive(Accounts)]

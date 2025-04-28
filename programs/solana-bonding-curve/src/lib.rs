@@ -16,16 +16,11 @@ declare_id!("GyiJuZJdiA3hF9CLEvm2yfY2P2FRehbcwRyMtz2itZ85");
 /// The sixbte, global state for all tokens.
 #[account]
 pub struct XyberCore {
-    // Who is allowed to update contract parameters
     pub admin: Pubkey,
-
-    // Example: A sixbte global threshold
     pub grad_threshold: u64,
-
+    pub total_supply: u64,
     // The bonding curve shared by all tokens
     pub bonding_curve: SmoothBondingCurve,
-
-    // Base mint accepted as payment (e.g. XBT SPL Token)
     pub accepted_base_mint: Pubkey,
 }
 
@@ -33,6 +28,7 @@ impl XyberCore {
     pub const LEN: usize = 8  // Anchor discriminator (1 + X -> 1 stand for optional fields)
         + (1 + 32) // admin (Pubkey)
         + (1 + 8)  // grad_threshold (u16)
+        + (1 + 8)  // total_supply (u64)
         // SmoothBondingCurve has 3 fields:
         // a_total_tokens: u64 -> 8 bytes
         // k_virtual_pool_offset: u128 -> 16 bytes
