@@ -34,11 +34,11 @@ pub struct InitAndMint<'info> {
     /// CHECK: 32 bytes used for PDA derivation
     pub token_seed: AccountInfo<'info>,
 
-    /// CHECK: Minted by the factory
+    /// CHECK: Minted by the factory (Not yet initialised)
     #[account(mut)]
     pub mint: UncheckedAccount<'info>,
 
-    /// CHECK: Factory-created ATA for minted tokens
+    /// CHECK: Factory-created ATA for minted tokens (Not yet initialised)
     #[account(mut)]
     pub vault_token_account: UncheckedAccount<'info>,
 
@@ -72,7 +72,7 @@ pub struct InitAndMint<'info> {
 }
 
 pub fn mint_full_supply_instruction(ctx: Context<InitAndMint>, params: TokenParams) -> Result<()> {
-    let total_supply = ctx.accounts.xyber_core.bonding_curve.a_total_tokens;
+    let total_supply = ctx.accounts.xyber_core.total_supply;
 
     let token_seed_vec = ctx.accounts.token_seed.key().to_bytes().to_vec();
     require_eq!(token_seed_vec.len(), 32, CustomError::InvalidSeed);
@@ -93,7 +93,7 @@ pub fn mint_full_supply_instruction(ctx: Context<InitAndMint>, params: TokenPara
     let cpi_program = ctx.accounts.token_factory_program.to_account_info();
     let cpi_ctx = CpiContext::new(cpi_program, cpi_accounts);
 
-    let raw_total_supply = total_supply * 10u64.pow(xyber_params::DECIMALS as u32); // TODO: pass from XyberToken states
+    let raw_total_supply = total_supply * 10u64.pow(xyber_params::DECIMALS as u32);
     cpi::create_and_mint_token(
         cpi_ctx,
         token_seed_vec,

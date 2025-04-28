@@ -222,86 +222,6 @@ export type BondingCurve = {
       ]
     },
     {
-      "name": "buyExactOutputInstruction",
-      "accounts": [
-        {
-          "name": "tokenSeed",
-          "isMut": false,
-          "isSigner": false
-        },
-        {
-          "name": "buyer",
-          "isMut": true,
-          "isSigner": true
-        },
-        {
-          "name": "xyberCore",
-          "isMut": true,
-          "isSigner": false
-        },
-        {
-          "name": "xyberToken",
-          "isMut": true,
-          "isSigner": false
-        },
-        {
-          "name": "escrowTokenAccount",
-          "isMut": true,
-          "isSigner": false
-        },
-        {
-          "name": "paymentMint",
-          "isMut": false,
-          "isSigner": false
-        },
-        {
-          "name": "mint",
-          "isMut": true,
-          "isSigner": false
-        },
-        {
-          "name": "vaultTokenAccount",
-          "isMut": true,
-          "isSigner": false
-        },
-        {
-          "name": "buyerTokenAccount",
-          "isMut": true,
-          "isSigner": false
-        },
-        {
-          "name": "buyerPaymentAccount",
-          "isMut": true,
-          "isSigner": false
-        },
-        {
-          "name": "associatedTokenProgram",
-          "isMut": false,
-          "isSigner": false
-        },
-        {
-          "name": "tokenProgram",
-          "isMut": false,
-          "isSigner": false
-        },
-        {
-          "name": "systemProgram",
-          "isMut": false,
-          "isSigner": false
-        }
-      ],
-      "args": [
-        {
-          "name": "tokensOut",
-          "type": "u64"
-        },
-        {
-          "name": "maxPaymentAmount",
-          "type": "u64"
-        }
-      ]
-    },
-    {
       "name": "sellExactInputInstruction",
       "accounts": [
         {
@@ -395,104 +315,6 @@ export type BondingCurve = {
         },
         {
           "name": "minBaseAmountOut",
-          "type": "u64"
-        }
-      ]
-    },
-    {
-      "name": "sellExactOutputInstruction",
-      "accounts": [
-        {
-          "name": "tokenSeed",
-          "isMut": false,
-          "isSigner": false
-        },
-        {
-          "name": "user",
-          "isMut": true,
-          "isSigner": true
-        },
-        {
-          "name": "xyberCore",
-          "isMut": true,
-          "isSigner": false
-        },
-        {
-          "name": "xyberToken",
-          "isMut": true,
-          "isSigner": false
-        },
-        {
-          "name": "escrowTokenAccount",
-          "isMut": true,
-          "isSigner": false,
-          "docs": [
-            "The escrow SPL token account that holds the *payment* tokens (e.g. USDC)."
-          ]
-        },
-        {
-          "name": "paymentMint",
-          "isMut": false,
-          "isSigner": false,
-          "docs": [
-            "The SPL mint of the payment token (e.g., USDC)."
-          ]
-        },
-        {
-          "name": "mint",
-          "isMut": true,
-          "isSigner": false,
-          "docs": [
-            "Token mint (fully minted at init)."
-          ]
-        },
-        {
-          "name": "vaultTokenAccount",
-          "isMut": true,
-          "isSigner": false,
-          "docs": [
-            "The vault that holds project’s tokens."
-          ]
-        },
-        {
-          "name": "userTokenAccount",
-          "isMut": true,
-          "isSigner": false,
-          "docs": [
-            "The user’s token account holding tokens."
-          ]
-        },
-        {
-          "name": "userPaymentAccount",
-          "isMut": true,
-          "isSigner": false,
-          "docs": [
-            "The user’s associated token account for the *payment* token."
-          ]
-        },
-        {
-          "name": "associatedTokenProgram",
-          "isMut": false,
-          "isSigner": false
-        },
-        {
-          "name": "tokenProgram",
-          "isMut": false,
-          "isSigner": false
-        },
-        {
-          "name": "systemProgram",
-          "isMut": false,
-          "isSigner": false
-        }
-      ],
-      "args": [
-        {
-          "name": "lamports",
-          "type": "u64"
-        },
-        {
-          "name": "maxTokensIn",
           "type": "u64"
         }
       ]
@@ -613,6 +435,10 @@ export type BondingCurve = {
           },
           {
             "name": "gradThreshold",
+            "type": "u64"
+          },
+          {
+            "name": "totalSupply",
             "type": "u64"
           },
           {
@@ -1127,86 +953,6 @@ export const IDL: BondingCurve = {
       ]
     },
     {
-      "name": "buyExactOutputInstruction",
-      "accounts": [
-        {
-          "name": "tokenSeed",
-          "isMut": false,
-          "isSigner": false
-        },
-        {
-          "name": "buyer",
-          "isMut": true,
-          "isSigner": true
-        },
-        {
-          "name": "xyberCore",
-          "isMut": true,
-          "isSigner": false
-        },
-        {
-          "name": "xyberToken",
-          "isMut": true,
-          "isSigner": false
-        },
-        {
-          "name": "escrowTokenAccount",
-          "isMut": true,
-          "isSigner": false
-        },
-        {
-          "name": "paymentMint",
-          "isMut": false,
-          "isSigner": false
-        },
-        {
-          "name": "mint",
-          "isMut": true,
-          "isSigner": false
-        },
-        {
-          "name": "vaultTokenAccount",
-          "isMut": true,
-          "isSigner": false
-        },
-        {
-          "name": "buyerTokenAccount",
-          "isMut": true,
-          "isSigner": false
-        },
-        {
-          "name": "buyerPaymentAccount",
-          "isMut": true,
-          "isSigner": false
-        },
-        {
-          "name": "associatedTokenProgram",
-          "isMut": false,
-          "isSigner": false
-        },
-        {
-          "name": "tokenProgram",
-          "isMut": false,
-          "isSigner": false
-        },
-        {
-          "name": "systemProgram",
-          "isMut": false,
-          "isSigner": false
-        }
-      ],
-      "args": [
-        {
-          "name": "tokensOut",
-          "type": "u64"
-        },
-        {
-          "name": "maxPaymentAmount",
-          "type": "u64"
-        }
-      ]
-    },
-    {
       "name": "sellExactInputInstruction",
       "accounts": [
         {
@@ -1300,104 +1046,6 @@ export const IDL: BondingCurve = {
         },
         {
           "name": "minBaseAmountOut",
-          "type": "u64"
-        }
-      ]
-    },
-    {
-      "name": "sellExactOutputInstruction",
-      "accounts": [
-        {
-          "name": "tokenSeed",
-          "isMut": false,
-          "isSigner": false
-        },
-        {
-          "name": "user",
-          "isMut": true,
-          "isSigner": true
-        },
-        {
-          "name": "xyberCore",
-          "isMut": true,
-          "isSigner": false
-        },
-        {
-          "name": "xyberToken",
-          "isMut": true,
-          "isSigner": false
-        },
-        {
-          "name": "escrowTokenAccount",
-          "isMut": true,
-          "isSigner": false,
-          "docs": [
-            "The escrow SPL token account that holds the *payment* tokens (e.g. USDC)."
-          ]
-        },
-        {
-          "name": "paymentMint",
-          "isMut": false,
-          "isSigner": false,
-          "docs": [
-            "The SPL mint of the payment token (e.g., USDC)."
-          ]
-        },
-        {
-          "name": "mint",
-          "isMut": true,
-          "isSigner": false,
-          "docs": [
-            "Token mint (fully minted at init)."
-          ]
-        },
-        {
-          "name": "vaultTokenAccount",
-          "isMut": true,
-          "isSigner": false,
-          "docs": [
-            "The vault that holds project’s tokens."
-          ]
-        },
-        {
-          "name": "userTokenAccount",
-          "isMut": true,
-          "isSigner": false,
-          "docs": [
-            "The user’s token account holding tokens."
-          ]
-        },
-        {
-          "name": "userPaymentAccount",
-          "isMut": true,
-          "isSigner": false,
-          "docs": [
-            "The user’s associated token account for the *payment* token."
-          ]
-        },
-        {
-          "name": "associatedTokenProgram",
-          "isMut": false,
-          "isSigner": false
-        },
-        {
-          "name": "tokenProgram",
-          "isMut": false,
-          "isSigner": false
-        },
-        {
-          "name": "systemProgram",
-          "isMut": false,
-          "isSigner": false
-        }
-      ],
-      "args": [
-        {
-          "name": "lamports",
-          "type": "u64"
-        },
-        {
-          "name": "maxTokensIn",
           "type": "u64"
         }
       ]
@@ -1518,6 +1166,10 @@ export const IDL: BondingCurve = {
           },
           {
             "name": "gradThreshold",
+            "type": "u64"
+          },
+          {
+            "name": "totalSupply",
             "type": "u64"
           },
           {

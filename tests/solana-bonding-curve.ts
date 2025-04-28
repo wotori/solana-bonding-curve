@@ -16,30 +16,27 @@ import { assert } from "chai";
 import { BondingCurve } from "../target/types/bonding_curve";
 import { BUYER_KEYPAIR_PATH, CREATOR_KEYPAIR_PATH, DEVNET_URL, METAPLEX_PROGRAM_ID, PAYMENT_MINT_PUBKEY, TOKEN_FACTORY_PROGRAM_ID } from "./constants";
 
-
-// Test constants
-const TOTAL_TOKENS = new BN("1073000191");
+const TOTAL_SUPPLY = new BN(1073000191); // TODO: confirm the correct TOTAL_SUPPLY value
 const DECIMALS = 9;
 const LAMPORTS_PER_TOKEN = 10 ** DECIMALS;
 
-// Adoptation (Xyber)
-const scaleFactor = new BN("300");
-const BONDING_K_VIRTUAL = new BN("32190005730")
-  .mul(scaleFactor)
+// SETUP – XyberToken – XBT
+const A_TOTAL_TOKENS = new BN("975000000000");
+const K_VIRTUAL_POOL_OFFSET = new BN("904507500000000")
   .mul(new BN(LAMPORTS_PER_TOKEN));
 
-const VIRTUAL_POOL_OFFSET = new BN(30)
-  .mul(scaleFactor)
+const C_BONDING_K_VIRTUAL = new BN("927000")
   .mul(new BN(LAMPORTS_PER_TOKEN));
 
-const GRADUATE_THRESHOLD = new BN("2000000");
+const GRADUATE_THRESHOLD = new BN("1000"); // PRODUCTION IS 2000000
 
-// Original (SOL)
-// const BONDING_K_VIRTUAL = new BN("32190005730").mul(new BN(LAMPORTS_PER_TOKEN));
-// const VIRTUAL_POOL_OFFSET = new BN(30 * LAMPORTS_PER_TOKEN);
+// SETUP - ORIGINAL - PUMP.FUN - SOLANA
+// const A_TOTAL_TOKENS = new BN("1073000191");
+// const K_VIRTUAL_POOL_OFFSET = new BN("32190005730").mul(new BN(LAMPORTS_PER_TOKEN));
+// const C_BONDING_K_VIRTUAL = new BN(30 * LAMPORTS_PER_TOKEN);
 // const GRADUATE_THRESHOLD = new BN("428");
 
-// Metadata parameters for the project toke
+// Metadata parameters for the project token
 const now = new Date();
 const year = now.getFullYear().toString().slice(2);
 const month = String(now.getMonth() + 1).padStart(2, "0");
@@ -51,6 +48,21 @@ const tokenName = `${year}_${month}_${day}_${hours}_${minutes}`;
 const tokenSymbol = "HWD";
 const tokenUri =
   "https://ekza.io/ipfs/QmVjBTRsbAM96BnNtZKrR8i3hGRbkjnQ3kugwXn6BVFu2k";
+
+function formatBnHumanReadable(bnValue: BN | null | undefined): string {
+  if (bnValue === null || bnValue === undefined) {
+    return "N/A";
+  }
+  const decimalString = bnValue.toString(10);
+  try {
+    return BigInt(decimalString).toLocaleString('en-US');
+  } catch (error) {
+    console.warn(
+      `Could not format BN ${decimalString} using BigInt. Returning raw string. Error: ${error}`
+    );
+    return decimalString;
+  }
+}
 
 describe("Bonding Curve Program (Token Init + Buyer/Seller Flow)", () => {
   // 1) Setup & Keypairs
@@ -141,16 +153,16 @@ describe("Bonding Curve Program (Token Init + Buyer/Seller Flow)", () => {
   // ------------------------------------------------------------------
   // 3) Tests
   // ------------------------------------------------------------------
-  it("1.2) update_core_instruction with random gradThreshold & small graduateDollars offset", async () => {
+  it("1 – update_core_instruction with random gradThreshold & small graduateDollars offset", async () => {
     console.log("----- Step 2: update_core_instruction -----");
 
-    // await program.methods.closeXyberCoreInstruction() // uncomment to recreate the core if needed
-    //   .accounts({
-    //     xyberCore: xyberCorePda,
-    //     admin: creatorKeypair.publicKey,
-    //   })
-    //   .signers([creatorKeypair])
-    //   .rpc();
+    await program.methods.closeXyberCoreInstruction() // uncomment to recreate the core if needed
+      .accounts({
+        xyberCore: xyberCorePda,
+        admin: creatorKeypair.publicKey,
+      })
+      .signers([creatorKeypair])
+      .rpc();
 
     // Add a small random offset (1..3) to GRADUATE_DOLLARS_AMOUNT
 
@@ -158,10 +170,11 @@ describe("Bonding Curve Program (Token Init + Buyer/Seller Flow)", () => {
     const updateTokenParams = {
       admin: creatorKeypair.publicKey,
       gradThreshold: GRADUATE_THRESHOLD,
+      totalSupply: TOTAL_SUPPLY,
       bondingCurve: {
-        aTotalTokens: TOTAL_TOKENS,
-        kVirtualPoolOffset: BONDING_K_VIRTUAL,
-        cBondingScaleFactor: VIRTUAL_POOL_OFFSET,
+        aTotalTokens: A_TOTAL_TOKENS,
+        kVirtualPoolOffset: K_VIRTUAL_POOL_OFFSET,
+        cBondingScaleFactor: C_BONDING_K_VIRTUAL,
       },
       acceptedBaseMint: PAYMENT_MINT_PUBKEY,
     };
@@ -198,10 +211,39 @@ describe("Bonding Curve Program (Token Init + Buyer/Seller Flow)", () => {
     // Fetch the updated state
     const xyberState = await program.account.xyberCore.fetch(xyberCorePda);
     console.log("After update_core, XYBER state:", xyberState);
+    if (xyberState) {
+      // Create the human-readable object using optional chaining for safety
+      const readableState = {
+        admin: xyberState.admin?.toString() ?? "N/A",
+        gradThreshold: formatBnHumanReadable(xyberState.gradThreshold),
+        bondingCurve: {
+          aTotalTokens: formatBnHumanReadable(xyberState.bondingCurve?.aTotalTokens),
+          kVirtualPoolOffset: formatBnHumanReadable(xyberState.bondingCurve?.kVirtualPoolOffset),
+          cBondingScaleFactor: formatBnHumanReadable(xyberState.bondingCurve?.cBondingScaleFactor),
+        },
+        acceptedBaseMint: xyberState.acceptedBaseMint?.toString() ?? "N/A",
+      };
+
+      // Print the human-readable state clearly
+      console.log("--- Human-Readable XYBER State (After update_core) ---");
+      console.log(`Admin: ${readableState.admin}`);
+      console.log(`Grad Threshold: ${readableState.gradThreshold}`);
+      console.log("Bonding Curve:");
+      console.log(`  Total Tokens (raw): ${readableState.bondingCurve.aTotalTokens}`);
+      console.log(`     (Note: Raw integer. Divide by 10^decimals for display value)`);
+      console.log(`  Virtual Pool Offset: ${readableState.bondingCurve.kVirtualPoolOffset}`);
+      console.log(`  Scale Factor: ${readableState.bondingCurve.cBondingScaleFactor}`);
+      console.log(`Accepted Base Mint: ${readableState.acceptedBaseMint}`);
+      // Print any other formatted fields...
+      console.log("----------------------------------------------------");
+
+    } else {
+      console.log("After update_core, XYBER state was fetched but is null or undefined.");
+    }
   });
 
   // 3.2) init_and_mint_full_supply_instruction
-  it("1.3) mint_full_supply_instruction", async () => {
+  it("2 – mint_full_supply_instruction", async () => {
     console.log("----- Step 3: mint_full_supply_instruction -----");
 
     const ixMintFullSupply = await program.methods
@@ -246,7 +288,7 @@ describe("Bonding Curve Program (Token Init + Buyer/Seller Flow)", () => {
   });
 
   // 3.3) Buyer buys token with exact base input
-  it("1.4) Buyer buys token with exact base input (buy_exact_input_instruction)", async () => {
+  it("3 – Buyer buys token with exact base input (buy_exact_input_instruction)", async () => {
     const vaultInfo = await getAccount(connection, vaultTokenAccount);
     console.log("Vault token balance (raw) =", vaultInfo.amount.toString());
 
@@ -264,7 +306,7 @@ describe("Bonding Curve Program (Token Init + Buyer/Seller Flow)", () => {
 
     // 3) Buyer pays
     const baseIn = new BN(0.1 * LAMPORTS_PER_TOKEN);
-    const expectedOut = new BN(10_000);
+    const expectedOut = new BN(1);
 
     // 4) Call the instruction
     await program.methods
@@ -328,7 +370,7 @@ describe("Bonding Curve Program (Token Init + Buyer/Seller Flow)", () => {
     const halfTokensInCurveUnits = tokensBuyerHasUnscaled.divn(2);
     console.log("Selling (unscaled) =>", halfTokensInCurveUnits.toString());
 
-    let slippage = new BN("0");
+    let slippage = new BN(1);
     await program.methods
       .sellExactInputInstruction(halfTokensInCurveUnits, slippage)
       .accounts({
@@ -360,118 +402,6 @@ describe("Bonding Curve Program (Token Init + Buyer/Seller Flow)", () => {
       buyerAtaInfo.amount.toString(),
       " after=",
       buyerAtaInfoAfter.amount.toString()
-    );
-  });
-
-  // 3.5) Buyer buys EXACT output
-  it("1.6) Buyer buys EXACT output: e.g. 10 project tokens (buy_exact_output_instruction)", async () => {
-    const buyerTokenAccount = await getAssociatedTokenAddress(
-      mintPda,
-      buyerKeypair.publicKey
-    );
-    const buyerPaymentAccount = await getAssociatedTokenAddress(
-      PAYMENT_MINT_PUBKEY,
-      buyerKeypair.publicKey
-    );
-
-    // 1) Suppose buyer wants exactly 10 unscaled tokens
-    const xyberTokensOutWanted = new BN(10);
-    const baseTokensPayExpected = new BN(15_000_000);
-
-    // 2) Check buyer's current raw balance
-    const buyerAtaInfoBefore = await getAccount(connection, buyerTokenAccount);
-    const buyerTokensBefore = buyerAtaInfoBefore.amount;
-
-    // 3) Buy instruction
-    await program.methods
-      .buyExactOutputInstruction(xyberTokensOutWanted, baseTokensPayExpected)
-      .accounts({
-        xyberCore: xyberCorePda,
-        tokenSeed: tokenSeedKeypair.publicKey,
-        buyer: buyerKeypair.publicKey,
-        xyberToken: xyberTokenPda,
-        escrowTokenAccount: escrowTokenAccount,
-        paymentMint: PAYMENT_MINT_PUBKEY,
-        mint: mintPda,
-        vaultTokenAccount: vaultTokenAccount,
-        buyerTokenAccount: buyerTokenAccount,
-        buyerPaymentAccount: buyerPaymentAccount,
-        associatedTokenProgram: ASSOCIATED_TOKEN_PROGRAM_ID,
-        tokenProgram: TOKEN_PROGRAM_ID,
-        systemProgram: SystemProgram.programId,
-      })
-      .signers([buyerKeypair])
-      .rpc();
-
-    // 4) Check the difference in buyer’s raw balance
-    const buyerAtaInfoAfter = await getAccount(connection, buyerTokenAccount);
-    const diff = buyerAtaInfoAfter.amount - buyerTokensBefore;
-
-    // Because on-chain code multiplies by 10^decimals
-    // we expect minted = 10 * 10^decimals
-    const expectedRawMinted = xyberTokensOutWanted.mul(new BN(10 ** DECIMALS));
-    assert(
-      diff === BigInt(expectedRawMinted.toString()),
-      `Expected minted=${expectedRawMinted}, but got diff=${diff}`
-    );
-    console.log(
-      "BuyExactOutput success. Minted raw =",
-      diff.toString(),
-      " (Wanted 10 unscaled tokens.)"
-    );
-  });
-
-  // 3.6) Buyer sells EXACT output
-  it("1.7) Buyer sells EXACT output: requests lamports back (sell_exact_output_instruction)", async () => {
-    const buyerTokenAccount = await getAssociatedTokenAddress(
-      mintPda,
-      buyerKeypair.publicKey
-    );
-    const buyerPaymentAccount = await getAssociatedTokenAddress(
-      PAYMENT_MINT_PUBKEY,
-      buyerKeypair.publicKey
-    );
-
-    // 1) Suppose user wants lamports of base back
-    const lamportsWanted = new BN(0.01 * LAMPORTS_PER_TOKEN);
-
-    // 2) Check the user's current raw token balance
-    const buyerAtaInfoBefore = await getAccount(connection, buyerTokenAccount);
-    const buyerTokensBefore = buyerAtaInfoBefore.amount;
-
-    // 3) Sell instruction
-    await program.methods
-      .sellExactOutputInstruction(lamportsWanted, lamportsWanted)
-      .accounts({
-        xyberCore: xyberCorePda,
-        tokenSeed: tokenSeedKeypair.publicKey,
-        user: buyerKeypair.publicKey,
-        xyberToken: xyberTokenPda,
-        escrowTokenAccount: escrowTokenAccount,
-        paymentMint: PAYMENT_MINT_PUBKEY,
-        mint: mintPda,
-        vaultTokenAccount: vaultTokenAccount,
-        userTokenAccount: buyerTokenAccount,
-        userPaymentAccount: buyerPaymentAccount,
-        associatedTokenProgram: ASSOCIATED_TOKEN_PROGRAM_ID,
-        tokenProgram: TOKEN_PROGRAM_ID,
-        systemProgram: SystemProgram.programId,
-      })
-      .signers([buyerKeypair])
-      .rpc();
-
-    // 4) Check final balance
-    const buyerAtaInfoAfter = await getAccount(connection, buyerTokenAccount);
-    const tokensBurned = buyerTokensBefore - buyerAtaInfoAfter.amount;
-
-    console.log(
-      "SellExactOutput => user burned:",
-      tokensBurned.toString(),
-      " raw tokens"
-    );
-    assert(
-      tokensBurned > BigInt(0),
-      "Expected to burn some positive number of tokens"
     );
   });
 
@@ -595,10 +525,8 @@ describe("Bonding Curve Program (Token Init + Buyer/Seller Flow)", () => {
     console.log("----- End of Dump -----");
   });
 
-  // 1.95) Buyer buys EXACT input => 500 base_in => check isGraduated, log escrow balance
-  it("1.95) Buyer buys EXACT input => 500 base_in => check isGraduated, log escrow", async () => {
-    console.log("----- Step 1.95: buy_exact_input_instruction (base_in=500) -----");
-
+  // 1.95) Buyer buys EXACT check isGraduated, log escrow balance
+  it("1.95) Buyer buys EXACT input => check isGraduated, log escrow", async () => {
     // 1) Find the ATA for the buyer
     const buyerTokenAccount = await getAssociatedTokenAddress(
       mintPda,
@@ -610,7 +538,7 @@ describe("Bonding Curve Program (Token Init + Buyer/Seller Flow)", () => {
     );
 
     // 2) Construct baseIn = 500 * 10^9, assuming we have 9 decimals in the base token (USDC-like)
-    const baseIn = new BN(500).mul(new BN(LAMPORTS_PER_TOKEN));
+    const baseIn = new BN(1000).mul(new BN(LAMPORTS_PER_TOKEN));
     const minAmountOut = new BN(0);
 
     console.log(

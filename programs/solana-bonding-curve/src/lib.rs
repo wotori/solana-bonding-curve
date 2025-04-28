@@ -11,23 +11,16 @@ use crate::xyber_params::{InitCoreParams, TokenParams};
 use curves::SmoothBondingCurve;
 use instructions::*;
 
-// current development id is BdHFqKoxuP3nFChJU7uLx39CJMF88SxH5ZkX4oZ5YqcD
-// new EHvS7Ts5k8Dvd8kXAyYYq2CmFVrLFyesTzuRC6D5KcTg
-declare_id!("EHvS7Ts5k8Dvd8kXAyYYq2CmFVrLFyesTzuRC6D5KcTg");
+declare_id!("GyiJuZJdiA3hF9CLEvm2yfY2P2FRehbcwRyMtz2itZ85");
 
 /// The sixbte, global state for all tokens.
 #[account]
 pub struct XyberCore {
-    // Who is allowed to update contract parameters
     pub admin: Pubkey,
-
-    // Example: A sixbte global threshold
     pub grad_threshold: u64,
-
+    pub total_supply: u64,
     // The bonding curve shared by all tokens
     pub bonding_curve: SmoothBondingCurve,
-
-    // Base mint accepted as payment (e.g. XBT SPL Token)
     pub accepted_base_mint: Pubkey,
 }
 
@@ -35,11 +28,12 @@ impl XyberCore {
     pub const LEN: usize = 8  // Anchor discriminator (1 + X -> 1 stand for optional fields)
         + (1 + 32) // admin (Pubkey)
         + (1 + 8)  // grad_threshold (u16)
-        // SmoothBondingCurve has 4 fields:
+        + (1 + 8)  // total_supply (u64)
+        // SmoothBondingCurve has 3 fields:
         // a_total_tokens: u64 -> 8 bytes
         // k_virtual_pool_offset: u128 -> 16 bytes
-        // c_bonding_scale_factor: u64 -> 8 bytes
-        // In total: 8 + 16 + 8 + 8 = 32
+        // c_bonding_scale_factor: u128 -> 16 bytes
+        // In total: 8 + 16 + 16 = 40
         + (1 + 40)  // bonding_curve
         + (1 + 32); // accepted_base_mint (Pubkey)
 }
@@ -100,14 +94,6 @@ pub mod bonding_curve {
         instructions::buy_exact_input_instruction(ctx, base_in, min_amount_out)
     }
 
-    pub fn buy_exact_output_instruction(
-        ctx: Context<BuyToken>,
-        tokens_out: u64,
-        max_payment_amount: u64,
-    ) -> Result<()> {
-        instructions::buy_exact_output_instruction(ctx, tokens_out, max_payment_amount)
-    }
-
     pub fn sell_exact_input_instruction(
         ctx: Context<SellToken>,
         normalized_token_amount: u64,
@@ -118,14 +104,6 @@ pub mod bonding_curve {
             normalized_token_amount,
             min_base_amount_out,
         )
-    }
-
-    pub fn sell_exact_output_instruction(
-        ctx: Context<SellToken>,
-        lamports: u64,
-        max_tokens_in: u64,
-    ) -> Result<()> {
-        instructions::sell_exact_output_instruction(ctx, lamports, max_tokens_in)
     }
 
     pub fn withdraw_liquidity(ctx: Context<WithdrawLiquidity>) -> Result<()> {

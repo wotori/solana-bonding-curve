@@ -172,5 +172,8 @@ pub static ACCEPTED_BASE_MINT: Pubkey = Pubkey::from_str("CThXy1nb8YgSDjKpWRn4zn
 
 ## Logs
 ```
-solana logs EHvS7Ts5k8Dvd8kXAyYYq2CmFVrLFyesTzuRC6D5KcTg --url devnet
+solana logs GyiJuZJdiA3hF9CLEvm2yfY2P2FRehbcwRyMtz2itZ85 --url devnet
 ```
+
+## Notes
+- sell_exact_out and buy_exact_out was commented out in 3d0f41c7652e31b3e638c96d3ab8f17851dca5f5 and in next commit completely removed to pass size limits as they not utilised by frontend. If needed for futureused can be restored from this commit hash.

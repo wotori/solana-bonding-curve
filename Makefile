@@ -20,4 +20,7 @@ build:
 	anchor run build
 
 air:
-	solana airdrop 5 -u devnet
+	solana airdrop 10 -u devnet
+
+ts-check-sdk:
+	npx tsc --noEmit -p ./src
