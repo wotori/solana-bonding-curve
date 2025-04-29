@@ -557,6 +557,12 @@
             "type": {
               "option": "publicKey"
             }
+          },
+          {
+            "name": "totalSupply",
+            "type": {
+              "option": "u64"
+            }
           }
         ]
       }
@@ -632,6 +638,11 @@
         },
         {
           "name": "escrow",
+          "type": "publicKey",
+          "index": false
+        },
+        {
+          "name": "tokenSeed",
           "type": "publicKey",
           "index": false
         }
@@ -728,6 +739,6 @@
     }
   ],
   "metadata": {
-    "address": "GyiJuZJdiA3hF9CLEvm2yfY2P2FRehbcwRyMtz2itZ85"
+    "address": "AGeCa6EvvQybD1nxXFevFmbLTPDJv3uz1NpPv4oG7ycY"
   }
 }

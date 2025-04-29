@@ -557,6 +557,12 @@ export type BondingCurve = {
             "type": {
               "option": "publicKey"
             }
+          },
+          {
+            "name": "totalSupply",
+            "type": {
+              "option": "u64"
+            }
           }
         ]
       }
@@ -632,6 +638,11 @@ export type BondingCurve = {
         },
         {
           "name": "escrow",
+          "type": "publicKey",
+          "index": false
+        },
+        {
+          "name": "tokenSeed",
           "type": "publicKey",
           "index": false
         }
@@ -1288,6 +1299,12 @@ export const IDL: BondingCurve = {
             "type": {
               "option": "publicKey"
             }
+          },
+          {
+            "name": "totalSupply",
+            "type": {
+              "option": "u64"
+            }
           }
         ]
       }
@@ -1363,6 +1380,11 @@ export const IDL: BondingCurve = {
         },
         {
           "name": "escrow",
+          "type": "publicKey",
+          "index": false
+        },
+        {
+          "name": "tokenSeed",
           "type": "publicKey",
           "index": false
         }
