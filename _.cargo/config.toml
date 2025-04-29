@@ -1,5 +1,0 @@
-[net]
-git-fetch-with-cli = true
-
-[patch."https://gitlab.xyber-labs.com/xyber/ets/uts-solana.git"]
-git = "ssh://git@gitlab.xyber-labs.com/xyber/ets/uts-solana.git"
