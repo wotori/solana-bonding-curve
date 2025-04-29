@@ -7,6 +7,7 @@ pub struct GraduationTriggered {
     pub vault: Pubkey,
     pub creator: Pubkey,
     pub escrow: Pubkey,
+    pub token_seed: Pubkey,
 }
 
 #[event]

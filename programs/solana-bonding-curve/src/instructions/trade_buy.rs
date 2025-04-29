@@ -152,6 +152,7 @@ pub fn buy_exact_input_instruction(
             vault: ctx.accounts.vault_token_account.key(),
             creator: ctx.accounts.xyber_token.creator.key(),
             escrow: ctx.accounts.escrow_token_account.key(),
+            token_seed: ctx.accounts.token_seed.key(),
         });
     }
 
