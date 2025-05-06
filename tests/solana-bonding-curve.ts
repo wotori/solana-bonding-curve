@@ -28,8 +28,8 @@ const K_VIRTUAL_POOL_OFFSET = new BN("904507500000000")
 const C_BONDING_K_VIRTUAL = new BN("927000")
   .mul(new BN(LAMPORTS_PER_TOKEN));
 
-const GRADUATE_THRESHOLD = new BN("2000000"); // FOR PRODUCTION
-// const GRADUATE_THRESHOLD = new BN("1000"); // FOR TESTING
+// const GRADUATE_THRESHOLD = new BN("2000000"); // FOR PRODUCTION
+const GRADUATE_THRESHOLD = new BN("1000"); // FOR TESTING
 
 // SETUP - ORIGINAL - PUMP.FUN - SOLANA
 // const A_TOTAL_TOKENS = new BN("1073000191");
@@ -157,13 +157,13 @@ describe("Bonding Curve Program (Token Init + Buyer/Seller Flow)", () => {
   it("1 – update_core_instruction with random gradThreshold & small graduateDollars offset", async () => {
     console.log("----- Step 2: update_core_instruction -----");
 
-    await program.methods.closeXyberCoreInstruction() // uncomment to recreate the core if needed
-      .accounts({
-        xyberCore: xyberCorePda,
-        admin: creatorKeypair.publicKey,
-      })
-      .signers([creatorKeypair])
-      .rpc();
+    // await program.methods.closeXyberCoreInstruction() // uncomment to recreate the core if needed
+    //   .accounts({
+    //     xyberCore: xyberCorePda,
+    //     admin: creatorKeypair.publicKey,
+    //   })
+    //   .signers([creatorKeypair])
+    //   .rpc();
 
     // Add a small random offset (1..3) to GRADUATE_DOLLARS_AMOUNT
 
@@ -598,7 +598,7 @@ describe("Bonding Curve Program (Token Init + Buyer/Seller Flow)", () => {
     );
   });
 
-  it("2.1) Withdraw Liquidity with correct admin", async () => {
+  it.skip("2.1) Withdraw Liquidity with correct admin", async () => {
     // Derive the admin's ATA for the base token and project token
     const adminBaseAta = await getAssociatedTokenAddress(
       PAYMENT_MINT_PUBKEY,

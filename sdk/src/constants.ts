@@ -2,7 +2,7 @@ import { PublicKey, SystemProgram } from '@solana/web3.js';
 
 
 export const TOKEN_FACTORY_PROGRAM_ID = new PublicKey(
-    process.env.TOKEN_FACTORY_PROGRAM_ID || "TF5AoQEG87r1gpWsNzADMxYean6tfdGVUouQQ5LbYPP"
+    process.env.TOKEN_FACTORY_PROGRAM_ID || "851Ez1PDMZY4yGYahRba87g7CYtmCfD8v5TP85cGj95p"
 );
 
 export const METAPLEX_PROGRAM_ID = new PublicKey(

@@ -13,14 +13,14 @@ const METAPLEX_PROGRAM_ID = new PublicKey(
     'metaqbxxUerdq28cj1RbAWkYQm3ybzjb6a8bt518x1s'
 );
 const TOKEN_FACTORY_PROGRAM_ID = new PublicKey(
-    'TF5AoQEG87r1gpWsNzADMxYean6tfdGVUouQQ5LbYPP'
+    '851Ez1PDMZY4yGYahRba87g7CYtmCfD8v5TP85cGj95p'
 );
 const PAYMENT_MINT_PUBKEY = new PublicKey(
     '6WQQPDXsBxkgMwuApkXbV2bUf3CZAJmGBDqk62aMpmKR'
 );
 
 const XYBER_PROGRAM_ID = new PublicKey(
-    'EHvS7Ts5k8Dvd8kXAyYYq2CmFVrLFyesTzuRC6D5KcTg'
+    'HL1jyNFAJa8EhuuqpZJfLLTsXsfk1yCGMX8XpGssrxQQ'
 );
 
 export const deriveAddresses = async (

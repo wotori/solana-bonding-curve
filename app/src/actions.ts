@@ -32,7 +32,7 @@ const METAPLEX_PROGRAM_ID = new PublicKey(
 );
 
 const TOKEN_FACTORY_PROGRAM_ID = new PublicKey(
-    "TF5AoQEG87r1gpWsNzADMxYean6tfdGVUouQQ5LbYPP"
+    "851Ez1PDMZY4yGYahRba87g7CYtmCfD8v5TP85cGj95p"
 );
 
 export const SYSVAR_RENT_PUBKEY = new PublicKey(
