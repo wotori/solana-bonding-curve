@@ -69,11 +69,6 @@
           "isSigner": false
         },
         {
-          "name": "tokenSeed",
-          "isMut": false,
-          "isSigner": false
-        },
-        {
           "name": "mint",
           "isMut": true,
           "isSigner": false
@@ -585,6 +580,10 @@
             "type": "string"
           },
           {
+            "name": "tokenSeed",
+            "type": "publicKey"
+          },
+          {
             "name": "totalChains",
             "type": "u8"
           }
@@ -737,5 +736,8 @@
       "name": "WrongPaymentMint",
       "msg": "Wrong payment mint provided."
     }
-  ]
+  ],
+  "metadata": {
+    "address": "8FydojysL5DJ8M3s15JLFEbsKzyQ1BcFgSMVDvJetEEq"
+  }
 }

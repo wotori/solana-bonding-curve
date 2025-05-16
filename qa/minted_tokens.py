@@ -3,7 +3,7 @@ from solana.rpc.api import Client, Pubkey
 
 client = Client("https://api.devnet.solana.com")
 
-PROGRAM_ID = Pubkey(base58.b58decode("HL1jyNFAJa8EhuuqpZJfLLTsXsfk1yCGMX8XpGssrxQQ"))
+PROGRAM_ID = Pubkey(base58.b58decode("8FydojysL5DJ8M3s15JLFEbsKzyQ1BcFgSMVDvJetEEq"))
 print("Program ID:", PROGRAM_ID)
 
 resp = client.get_program_accounts(PROGRAM_ID, encoding="base64")

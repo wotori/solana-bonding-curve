@@ -11,6 +11,7 @@ use token_factory::cpi;
 use token_factory::cpi::accounts::CreateAndMintToken;
 
 #[derive(Accounts)]
+#[instruction(params: TokenParams)]
 pub struct InitAndMint<'info> {
     #[account(mut)]
     pub creator: Signer<'info>,
@@ -18,7 +19,7 @@ pub struct InitAndMint<'info> {
     #[account(
         init,
         payer = creator,
-        seeds = [b"xyber_token", token_seed.key().as_ref()],
+        seeds = [b"xyber_token", params.token_seed.as_ref()],
         bump,
         space = XyberToken::LEN
     )]
@@ -30,9 +31,6 @@ pub struct InitAndMint<'info> {
         bump
     )]
     pub xyber_core: Account<'info, XyberCore>,
-
-    /// CHECK: 32 bytes used for PDA derivation
-    pub token_seed: AccountInfo<'info>,
 
     /// CHECK: Minted by the factory (Not yet initialised)
     #[account(mut)]
@@ -74,7 +72,7 @@ pub struct InitAndMint<'info> {
 pub fn mint_full_supply_instruction(ctx: Context<InitAndMint>, params: TokenParams) -> Result<()> {
     let total_supply = ctx.accounts.xyber_core.total_supply;
 
-    let token_seed_vec = ctx.accounts.token_seed.key().to_bytes().to_vec();
+    let token_seed_vec = params.token_seed.key().to_bytes().to_vec();
     require_eq!(token_seed_vec.len(), 32, CustomError::InvalidSeed);
 
     let cpi_accounts = CreateAndMintToken {

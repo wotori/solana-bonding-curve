@@ -69,11 +69,6 @@ export type BondingCurve = {
           "isSigner": false
         },
         {
-          "name": "tokenSeed",
-          "isMut": false,
-          "isSigner": false
-        },
-        {
           "name": "mint",
           "isMut": true,
           "isSigner": false
@@ -583,6 +578,10 @@ export type BondingCurve = {
           {
             "name": "uri",
             "type": "string"
+          },
+          {
+            "name": "tokenSeed",
+            "type": "publicKey"
           },
           {
             "name": "totalChains",
@@ -811,11 +810,6 @@ export const IDL: BondingCurve = {
           "isSigner": false
         },
         {
-          "name": "tokenSeed",
-          "isMut": false,
-          "isSigner": false
-        },
-        {
           "name": "mint",
           "isMut": true,
           "isSigner": false
@@ -1325,6 +1319,10 @@ export const IDL: BondingCurve = {
           {
             "name": "uri",
             "type": "string"
+          },
+          {
+            "name": "tokenSeed",
+            "type": "publicKey"
           },
           {
             "name": "totalChains",

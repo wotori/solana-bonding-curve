@@ -10,7 +10,7 @@ pub struct InitCoreParams {
     pub grad_threshold: Option<u64>,
     pub bonding_curve: Option<SmoothBondingCurve>,
     pub accepted_base_mint: Option<Pubkey>,
-    pub total_supply: Option<u64>
+    pub total_supply: Option<u64>,
 }
 
 #[derive(AnchorSerialize, AnchorDeserialize, Clone)]
@@ -18,6 +18,6 @@ pub struct TokenParams {
     pub name: String,
     pub symbol: String,
     pub uri: String,
-
+    pub token_seed: Pubkey,
     pub total_chains: u8,
 }

@@ -248,16 +248,17 @@ describe("Bonding Curve Program (Token Init + Buyer/Seller Flow)", () => {
     console.log("----- Step 3: mint_full_supply_instruction -----");
 
     const ixMintFullSupply = await program.methods
-      .mintFullSupplyInstruction({
-        name: tokenName,
-        symbol: tokenSymbol,
-        uri: tokenUri,
-        totalChains: 1,
-      })
+      .mintFullSupplyInstruction(
+        {
+          name: tokenName,
+          symbol: tokenSymbol,
+          uri: tokenUri,
+          totalChains: 1,
+          tokenSeed: tokenSeedKeypair.publicKey,
+        })
       .accounts({
         xyberCore: xyberCorePda,
         xyberToken: xyberTokenPda,
-        tokenSeed: tokenSeedKeypair.publicKey,
         creator: creatorKeypair.publicKey,
         mint: mintPda,
         vaultTokenAccount: vaultTokenAccount,

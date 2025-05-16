@@ -22,8 +22,6 @@ borsh = { version = "0.10.3", features = ["std"] }
 anchor-spl = { version = "0.29.0", features = ["metadata"] }
 
 [dependencies.token_factory]
-# git = "https://gitlab.xyber-labs.com/xyber/ets/uts-solana.git"
-# branch = "xyber"
-path = "/Users/wotori/git/xyber/Xyber/solana-token-factory/programs/token_factory"
+path = "/Users/wotori/git/xyber/Xyber/solana-token-factory/programs/token_factory" # TODO: move to github
 package = "token_factory"
 features = ["cpi"]

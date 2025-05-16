@@ -1,5 +1,5 @@
 # Bonding Curve – Solana
-A bonding curve program with enhanced features for the Xyber project. Includes token locking logic, liquidity pool creation, and more. 
+A bonding curve program with enhanced features for the Xyber project. Includes token locking logic, liquidity pool creation, and more.
 
 <img src="logo.png" alt="solana-bonding-curve" width="300" height="300">
 
@@ -172,7 +172,7 @@ pub static ACCEPTED_BASE_MINT: Pubkey = Pubkey::from_str("CThXy1nb8YgSDjKpWRn4zn
 
 ## Logs
 ```
-solana logs HL1jyNFAJa8EhuuqpZJfLLTsXsfk1yCGMX8XpGssrxQQ --url devnet
+solana logs 8FydojysL5DJ8M3s15JLFEbsKzyQ1BcFgSMVDvJetEEq --url devnet
 ```
 
 ## Notes

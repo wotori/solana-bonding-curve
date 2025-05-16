@@ -47,7 +47,7 @@ export const getProgram = (wallet: WalletContextState) => {
     // Create and return the program instance
     return new Program<BondingCurve>(
         idl as unknown as BondingCurve,
-        'HL1jyNFAJa8EhuuqpZJfLLTsXsfk1yCGMX8XpGssrxQQ',
+        '8FydojysL5DJ8M3s15JLFEbsKzyQ1BcFgSMVDvJetEEq',
         provider
     );
 };
