@@ -68,6 +68,14 @@ pub struct BuyToken<'info> {
     )]
     pub buyer_payment_account: Box<Account<'info, TokenAccount>>,
 
+    /// Agent's payment token account
+    #[account(mut)]
+    pub agent_payment_account: Box<Account<'info, TokenAccount>>,
+
+    /// Treasury's payment token account
+    #[account(mut)]
+    pub treasury_payment_account: Box<Account<'info, TokenAccount>>,
+
     pub associated_token_program: Program<'info, AssociatedToken>,
     pub token_program: Program<'info, Token>,
 
@@ -93,14 +101,48 @@ pub fn buy_exact_input_instruction(
         CustomError::WrongPaymentMint
     );
 
+    // Validate agent and treasury token accounts match stored pubkeys via associated token addresses
+    let agent_wallet = ctx.accounts.xyber_token.agent_wallet_pubkey;
+    let expected_agent_ata = anchor_spl::associated_token::get_associated_token_address(
+        &agent_wallet,
+        &ctx.accounts.payment_mint.key(),
+    );
+    require_keys_eq!(
+        ctx.accounts.agent_payment_account.key(),
+        expected_agent_ata,
+        CustomError::InvalidAgentTokenAccount
+    );
+
+    let treasury_wallet = ctx.accounts.xyber_core.treasury_wallet;
+    let expected_treasury_ata = anchor_spl::associated_token::get_associated_token_address(
+        &treasury_wallet,
+        &ctx.accounts.payment_mint.key(),
+    );
+    require_keys_eq!(
+        ctx.accounts.treasury_payment_account.key(),
+        expected_treasury_ata,
+        CustomError::InvalidTreasuryTokenAccount
+    );
+
     let escrow_balance = ctx.accounts.escrow_token_account.amount;
+
+    // --- (0.5) Calculate commission up‑front and derive the net payment
+    let commission_amount = payment_amount
+        .checked_mul(ctx.accounts.xyber_core.commission_rate)
+        .ok_or(CustomError::MathOverflow)?
+        .checked_div(10_000)
+        .ok_or(CustomError::MathOverflow)?;
+
+    let net_payment = payment_amount
+        .checked_sub(commission_amount)
+        .ok_or(CustomError::MathOverflow)?;
 
     // 1) Determine the token amount for `payment_amount`.
     let (actual_tokens_out, _new_x) = ctx
         .accounts
         .xyber_core
         .bonding_curve
-        .buy_exact_input(escrow_balance, payment_amount)?;
+        .buy_exact_input(escrow_balance, net_payment)?;
 
     msg!(
         "buy_exact_input actual_tokens_out = {:?}",
@@ -132,12 +174,26 @@ pub fn buy_exact_input_instruction(
     );
 
     token::transfer(transfer_payment_ctx, payment_amount)?;
-    let updated_escrow_balance = escrow_balance
-        .checked_add(payment_amount)
-        .ok_or(CustomError::MathOverflow)?;
 
-    let real_escrow_tokens =
-        updated_escrow_balance / 10_u64.pow(ctx.accounts.payment_mint.decimals as u32);
+    crate::utils::transfer_commission(
+        &ctx.accounts.token_program,
+        &ctx.accounts.escrow_token_account.to_account_info(),
+        &ctx.accounts.agent_payment_account.to_account_info(),
+        &ctx.accounts.treasury_payment_account.to_account_info(),
+        &ctx.accounts.xyber_token.to_account_info(),
+        &[
+            b"xyber_token",
+            ctx.accounts.token_seed.key().as_ref(),
+            &[ctx.bumps.xyber_token],
+        ],
+        payment_amount,
+        ctx.accounts.xyber_core.commission_rate,
+    )?;
+
+    let escrow_balance_after = ctx.accounts.escrow_token_account.amount;
+    let real_escrow_tokens = escrow_balance_after
+        .checked_div(10_u64.pow(ctx.accounts.payment_mint.decimals as u32))
+        .ok_or(CustomError::MathOverflow)?;
 
     let grad_threshold = effective_threshold_for_chains(
         ctx.accounts.xyber_core.grad_threshold,

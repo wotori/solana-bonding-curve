@@ -3,6 +3,7 @@ use anchor_lang::prelude::*;
 mod curves;
 mod errors;
 mod events;
+mod utils;
 mod xyber_params;
 
 mod instructions;
@@ -22,20 +23,23 @@ pub struct XyberCore {
     // The bonding curve shared by all tokens
     pub bonding_curve: SmoothBondingCurve,
     pub accepted_base_mint: Pubkey,
+
+    /// Treasury account for protocol fees
+    pub treasury_wallet: Pubkey,
+
+    /// Commission rate (in basis points)
+    pub commission_rate: u64,
 }
 
 impl XyberCore {
-    pub const LEN: usize = 8  // Anchor discriminator (1 + X -> 1 stand for optional fields)
-        + (1 + 32) // admin (Pubkey)
-        + (1 + 8)  // grad_threshold (u16)
-        + (1 + 8)  // total_supply (u64)
-        // SmoothBondingCurve has 3 fields:
-        // a_total_tokens: u64 -> 8 bytes
-        // k_virtual_pool_offset: u128 -> 16 bytes
-        // c_bonding_scale_factor: u128 -> 16 bytes
-        // In total: 8 + 16 + 16 = 40
-        + (1 + 40)  // bonding_curve
-        + (1 + 32); // accepted_base_mint (Pubkey)
+    pub const LEN: usize = 8  // Anchor discriminator
+        + (1 + 32) // admin
+        + (1 + 8)  // grad_threshold
+        + (1 + 8)  // total_supply
+        + (1 + 40) // bonding_curve
+        + (1 + 32) // accepted_base_mint
+        + (1 + 32) // treasury
+        + (1 + 8); // commission_rate
 }
 
 /// One account per unique token. It holds only “token-specific” info.
@@ -53,17 +57,22 @@ pub struct XyberToken {
     // The creator's Pubkey
     pub creator: Pubkey,
 
+    /// Agent's commission account (mint Pubkey)
+    pub agent_wallet_pubkey: Pubkey,
+
     // used for managing grad_threshold from XyberCore
     pub total_chains: u8,
 }
 
 impl XyberToken {
     pub const LEN: usize = 8  // Discriminator
-        + 1  // is_graduated
+        + 1   // is_graduated
         + 32  // mint
         + 32  // vault
-        + 32 // creator
-        + 1; // total_chains
+        + 32  // creator
+        + 1   // total_chains
+        + 32  // agent_wallet_pubkey
+        ;
 }
 
 #[program]

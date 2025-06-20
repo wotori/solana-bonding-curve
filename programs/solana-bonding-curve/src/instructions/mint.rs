@@ -108,6 +108,7 @@ pub fn mint_full_supply_instruction(ctx: Context<InitAndMint>, params: TokenPara
     xyber_token.vault = ctx.accounts.vault_token_account.key();
     xyber_token.creator = ctx.accounts.creator.key();
     xyber_token.total_chains = params.total_chains;
+    xyber_token.agent_wallet_pubkey = params.token_seed;
 
     Ok(())
 }

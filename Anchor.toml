@@ -19,5 +19,5 @@ wallet = "/Users/wotori/.config/solana/id.json"
 
 [scripts]
 test = "yarn run ts-mocha -p ./tsconfig.json -t 1000000 tests/**/*.ts"
-setup = "avm use 0.29.0 && agave-install init 1.18.26"
+setup = "avm use 0.29.0 && agave-install init 1.18.26 && rustup default stable"
 build = "anchor build && cp target/idl/*.json ./idl/ && cp target/types/*.ts ./idl/"
