@@ -31,4 +31,10 @@ pub enum CustomError {
 
     #[msg("Wrong payment mint provided.")]
     WrongPaymentMint,
+
+    #[msg("Invalid agent token account: does not match the expected associated token address.")]
+    InvalidAgentTokenAccount,
+
+    #[msg("Invalid treasury token account: does not match the expected associated token address.")]
+    InvalidTreasuryTokenAccount,
 }

@@ -190,6 +190,22 @@ export type BondingCurve = {
           "isSigner": false
         },
         {
+          "name": "agentPaymentAccount",
+          "isMut": true,
+          "isSigner": false,
+          "docs": [
+            "Agent's payment token account"
+          ]
+        },
+        {
+          "name": "treasuryPaymentAccount",
+          "isMut": true,
+          "isSigner": false,
+          "docs": [
+            "Treasury's payment token account"
+          ]
+        },
+        {
           "name": "associatedTokenProgram",
           "isMut": false,
           "isSigner": false
@@ -285,6 +301,22 @@ export type BondingCurve = {
           "isSigner": false,
           "docs": [
             "The user’s associated token account for the *payment* token."
+          ]
+        },
+        {
+          "name": "agentPaymentAccount",
+          "isMut": true,
+          "isSigner": false,
+          "docs": [
+            "Agent's payment token account"
+          ]
+        },
+        {
+          "name": "treasuryPaymentAccount",
+          "isMut": true,
+          "isSigner": false,
+          "docs": [
+            "Treasury's payment token account"
           ]
         },
         {
@@ -445,6 +477,20 @@ export type BondingCurve = {
           {
             "name": "acceptedBaseMint",
             "type": "publicKey"
+          },
+          {
+            "name": "treasuryWallet",
+            "docs": [
+              "Treasury account for protocol fees"
+            ],
+            "type": "publicKey"
+          },
+          {
+            "name": "commissionRate",
+            "docs": [
+              "Commission rate (in basis points)"
+            ],
+            "type": "u64"
           }
         ]
       }
@@ -471,6 +517,13 @@ export type BondingCurve = {
           },
           {
             "name": "creator",
+            "type": "publicKey"
+          },
+          {
+            "name": "agentWalletPubkey",
+            "docs": [
+              "Agent's commission account (mint Pubkey)"
+            ],
             "type": "publicKey"
           },
           {
@@ -735,6 +788,16 @@ export type BondingCurve = {
       "code": 6009,
       "name": "WrongPaymentMint",
       "msg": "Wrong payment mint provided."
+    },
+    {
+      "code": 6010,
+      "name": "InvalidAgentTokenAccount",
+      "msg": "Invalid agent token account: does not match the expected associated token address."
+    },
+    {
+      "code": 6011,
+      "name": "InvalidTreasuryTokenAccount",
+      "msg": "Invalid treasury token account: does not match the expected associated token address."
     }
   ]
 };
@@ -931,6 +994,22 @@ export const IDL: BondingCurve = {
           "isSigner": false
         },
         {
+          "name": "agentPaymentAccount",
+          "isMut": true,
+          "isSigner": false,
+          "docs": [
+            "Agent's payment token account"
+          ]
+        },
+        {
+          "name": "treasuryPaymentAccount",
+          "isMut": true,
+          "isSigner": false,
+          "docs": [
+            "Treasury's payment token account"
+          ]
+        },
+        {
           "name": "associatedTokenProgram",
           "isMut": false,
           "isSigner": false
@@ -1026,6 +1105,22 @@ export const IDL: BondingCurve = {
           "isSigner": false,
           "docs": [
             "The user’s associated token account for the *payment* token."
+          ]
+        },
+        {
+          "name": "agentPaymentAccount",
+          "isMut": true,
+          "isSigner": false,
+          "docs": [
+            "Agent's payment token account"
+          ]
+        },
+        {
+          "name": "treasuryPaymentAccount",
+          "isMut": true,
+          "isSigner": false,
+          "docs": [
+            "Treasury's payment token account"
           ]
         },
         {
@@ -1186,6 +1281,20 @@ export const IDL: BondingCurve = {
           {
             "name": "acceptedBaseMint",
             "type": "publicKey"
+          },
+          {
+            "name": "treasuryWallet",
+            "docs": [
+              "Treasury account for protocol fees"
+            ],
+            "type": "publicKey"
+          },
+          {
+            "name": "commissionRate",
+            "docs": [
+              "Commission rate (in basis points)"
+            ],
+            "type": "u64"
           }
         ]
       }
@@ -1212,6 +1321,13 @@ export const IDL: BondingCurve = {
           },
           {
             "name": "creator",
+            "type": "publicKey"
+          },
+          {
+            "name": "agentWalletPubkey",
+            "docs": [
+              "Agent's commission account (mint Pubkey)"
+            ],
             "type": "publicKey"
           },
           {
@@ -1476,6 +1592,16 @@ export const IDL: BondingCurve = {
       "code": 6009,
       "name": "WrongPaymentMint",
       "msg": "Wrong payment mint provided."
+    },
+    {
+      "code": 6010,
+      "name": "InvalidAgentTokenAccount",
+      "msg": "Invalid agent token account: does not match the expected associated token address."
+    },
+    {
+      "code": 6011,
+      "name": "InvalidTreasuryTokenAccount",
+      "msg": "Invalid treasury token account: does not match the expected associated token address."
     }
   ]
 };
